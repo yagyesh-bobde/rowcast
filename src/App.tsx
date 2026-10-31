@@ -1,34 +1,42 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { useEffect, useState } from 'react'
+import { AppHeader } from '@/components/AppHeader'
+import { StudioFrame, type StudioMode } from '@/features/studio/StudioFrame'
+import { useTheme } from '@/hooks/use-theme'
 import './App.css'
 
+const readMode = (): StudioMode =>
+  window.location.pathname.replace(/\/$/, '') === '/walkthrough' ? 'walkthrough' : 'studio'
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [mode, setMode] = useState<StudioMode>(readMode)
+  const { theme, toggleTheme } = useTheme()
+
+  useEffect(() => {
+    const onPopState = () => setMode(readMode())
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  const navigate = (nextMode: StudioMode) => {
+    window.history.pushState(null, '', nextMode === 'studio' ? '/' : '/walkthrough')
+    setMode(nextMode)
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <div className="site-shell">
+      <a className="skip-link" href="#workspace">Skip to workspace</a>
+      <AppHeader mode={mode} onNavigate={navigate} theme={theme} onToggleTheme={toggleTheme} />
+      {mode === 'studio' && (
+        <div className="prototype-notice" role="note">
+          <span className="notice-dot" aria-hidden="true" />
+          <p><strong>Interactive prototype.</strong> Try the sample workbook. Video rendering and delivery are simulated; the manifest CSV is real.</p>
+          <a href="/samples/riddles-100.xlsx" download>Get the sample sheet ↗</a>
+        </div>
+      )}
+      <main id="workspace" className="workspace" tabIndex={-1}>
+        <StudioFrame mode={mode} theme={theme} />
+      </main>
+    </div>
   )
 }
 

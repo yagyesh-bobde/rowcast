@@ -1,0 +1,892 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rowcast — UI walkthrough (spreadsheet → template → one video per row)</title>
+<style>
+:root{color-scheme:light dark}
+html,body{margin:0;padding:0;background:none}
+.wt{
+  --bg:var(--background,Canvas);--fg:var(--foreground,CanvasText);--mfg:var(--muted-foreground,GrayText);
+  --surface:var(--card,Canvas);--pop:var(--popover,var(--surface,Canvas));
+  --sec:var(--secondary,color-mix(in srgb,CanvasText 6%,Canvas));
+  --acc:color-mix(in srgb,var(--pri) 9%,var(--surface));
+  --bd:var(--border,color-mix(in srgb,CanvasText 16%,Canvas));
+  --focus:var(--ring,Highlight);--pri:var(--primary,LinkText);
+  --primary-ink:color-mix(in srgb,var(--pri) 70%,var(--fg));
+  --err:var(--destructive,#d6453d);--warn:var(--warning,#c98a00);--ok:var(--success,#1f9d61);--status-info:var(--info,#2f7de1);
+  --r:var(--radius,8px);--rs:calc(var(--r) * .6);
+  --sans:var(--font-sans,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif);
+  --mono:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,Consolas,monospace);
+  --seam:6px;--pr:clamp(4px,calc(var(--r) * .75),8px);
+  font-family:var(--sans);color:var(--fg);font-size:14px;line-height:1.45;
+}
+.wt *{box-sizing:border-box}
+.wt h1,.wt h2,.wt h3,.wt h4{margin:0;line-height:1.25}
+.wt p{margin:0}
+.wt a{color:var(--primary-ink)}
+.wt code,.mono{font-family:var(--mono);font-size:.92em}
+.wt button,.wt input,.wt select,.wt textarea{font:inherit;color:inherit}
+.wt :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.muted{color:var(--mfg)}
+.small{font-size:12.5px}
+.tint-ok{color:var(--ok)}.tint-warn{color:var(--warn)}.tint-err{color:var(--err)}.tint-info{color:var(--status-info)}
+
+/* ---------- document framing ---------- */
+.intro{display:grid;gap:10px;margin-bottom:16px}
+.intro h1{font-size:22px;letter-spacing:-.01em}
+.intro .lede{font-size:15px;max-width:72ch}
+.facts{display:flex;flex-wrap:wrap;gap:6px}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--bd);white-space:nowrap}
+.tag.doc{color:var(--status-info);border-color:color-mix(in srgb,var(--status-info) 40%,transparent)}
+.tag.inf{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.tag.pro{color:var(--primary-ink);border-color:color-mix(in srgb,var(--pri) 40%,transparent)}
+.tag.obs{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.simnote{border-left:3px solid var(--bd);padding:6px 10px;font-size:13.5px;background:var(--sec);border-radius:0 var(--rs) var(--rs) 0}
+
+/* guided tour bar: document chrome, deliberately not app chrome */
+.tour{display:grid;gap:8px;margin:14px 0 10px}
+.tour-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tour-head .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mfg)}
+.tour-head h2{font-size:17px;flex:1 1 220px}
+.tour-steps{display:flex;gap:4px;overflow-x:auto;padding:2px;scrollbar-width:thin}
+.ts{flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1px dashed var(--bd);background:none;border-radius:999px;padding:5px 10px 5px 5px;cursor:pointer;font-size:12.5px;color:var(--mfg)}
+.ts b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--sec);color:var(--fg);font-size:11px}
+.ts:hover{color:var(--fg);border-style:solid}
+.ts[aria-current="step"]{border:1px solid var(--fg);color:var(--fg);font-weight:600}
+.ts[aria-current="step"] b{background:var(--fg);color:var(--bg)}
+.ts.corr b{box-shadow:0 0 0 2px var(--warn)}
+.navbtn{border:1px solid var(--bd);background:none;border-radius:var(--rs);padding:6px 12px;cursor:pointer;min-height:34px}
+.navbtn:hover:not(:disabled){background:var(--sec)}
+.navbtn:disabled{opacity:.45;cursor:default}
+
+/* ---------- product app frame ---------- */
+/* docked studio: panes on a board one step darker, seams are the board showing through (pattern after OpenFilm globals.css; values are ours, from host tokens) */
+.app{container-type:inline-size;border:1px solid var(--bd);border-radius:calc(var(--r) + 4px);overflow:hidden;
+  --board:color-mix(in srgb,var(--bg) 95%,#000);--surface:color-mix(in srgb,var(--card,Canvas) 96%,#fff);--acc:color-mix(in srgb,var(--pri) 10%,var(--surface));
+  background:var(--board)}
+.atop{display:flex;align-items:center;gap:10px;padding:5px 8px 5px 10px;flex-wrap:wrap;min-height:40px}
+.brand{display:flex;align-items:center;gap:8px;min-width:0}
+.brand .name{font-weight:600;font-size:13.5px;white-space:nowrap}
+.brand .rev{font-size:12px;color:var(--mfg);white-space:nowrap}
+.tabs{display:flex;gap:2px;margin-left:auto;overflow-x:auto;max-width:100%}
+.tab{display:flex;align-items:center;gap:6px;border:0;background:none;padding:5px 10px;border-radius:var(--pr);cursor:pointer;color:var(--mfg);font-weight:550;font-size:13px;white-space:nowrap;min-height:30px}
+.tab:hover{background:color-mix(in srgb,var(--fg) 6%,transparent);color:var(--fg)}
+.tab[aria-current="page"]{background:var(--surface);color:var(--fg);box-shadow:0 0 0 1px var(--bd)}
+.badge{font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--sec);color:var(--mfg);font-variant-numeric:tabular-nums}
+.badge.err{background:color-mix(in srgb,var(--err) 16%,transparent);color:var(--err)}
+.badge.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.badge.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.badge.info{background:color-mix(in srgb,var(--status-info) 16%,transparent);color:var(--status-info)}
+.abody{display:grid;min-height:460px;padding:0 var(--seam)}
+.pane{padding:12px;min-width:0;background:var(--surface);border:1px solid color-mix(in srgb,var(--bd) 60%,transparent);border-radius:var(--pr)}
+.pane.flush{padding:0;display:flex;flex-direction:column}
+.pane.solo{padding:0;overflow:hidden}
+.pbar{display:flex;align-items:center;gap:8px;min-height:34px;padding:4px 10px;border-bottom:1px solid color-mix(in srgb,var(--bd) 60%,transparent);font-size:12.5px;flex-wrap:wrap}
+.pbar b{font-weight:600}
+.pbar .sp{flex:1}
+.pbody{padding:8px;min-width:0}
+.grid3{display:grid;gap:var(--seam);grid-template-columns:minmax(0,1fr);grid-template-areas:"stage" "left" "right"}
+.pane.left{grid-area:left}
+.pane.right{grid-area:right}
+.pane.stage{grid-area:stage;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px}
+@container (min-width:600px){
+  .grid3{grid-template-columns:minmax(0,1fr) 250px;grid-template-areas:"left left" "stage right"}
+  .left .stack{display:flex;flex-wrap:wrap;gap:6px}
+}
+@container (min-width:900px){
+  .grid3{grid-template-columns:230px minmax(0,1fr) 270px;grid-template-areas:"left stage right"}
+  .left .stack{display:grid;gap:4px}
+}
+/* Template editor: layers | canvas | inspector over a full-width timeline */
+.ed{display:grid;gap:var(--seam);grid-template-columns:minmax(0,1fr);grid-template-areas:"view" "tl" "lyr" "insp"}
+.ed .lyrp{grid-area:lyr}.ed .viewp{grid-area:view}.ed .inspp{grid-area:insp}.ed .tlp{grid-area:tl}
+@container (min-width:600px){ .ed{grid-template-columns:minmax(0,1fr) 240px;grid-template-rows:auto 1fr auto;grid-template-areas:"view lyr" "view insp" "tl tl"} }
+@container (min-width:900px){ .ed{grid-template-columns:220px minmax(0,1fr) 264px;grid-template-rows:auto auto;grid-template-areas:"lyr view insp" "tl tl tl"} }
+.ed .viewp{justify-content:center}
+.vtop{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;width:100%}
+.vbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;width:min(100%,560px);font-size:12.5px;color:var(--mfg);font-variant-numeric:tabular-nums}
+.vbar .vs{justify-self:end;white-space:nowrap}
+.ph{font-size:12.5px;font-weight:600;color:var(--mfg);margin:0 0 8px;display:flex;align-items:center;gap:6px}
+.ph .sp{flex:1}
+.stack{display:grid;gap:4px}
+
+/* controls */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--bd);background:var(--surface);border-radius:var(--pr);padding:6px 11px;min-height:34px;cursor:pointer;font-weight:550;font-size:13.5px}
+.btn:hover:not(:disabled){background:var(--sec)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:var(--primary-foreground,Canvas)}
+.btn.pri:hover:not(:disabled){background:color-mix(in srgb,var(--pri) 88%,CanvasText)}
+.btn.ghost{border-color:transparent;background:none}
+.btn.dangerous{color:var(--err)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{min-height:30px;padding:4px 9px;font-size:13px}
+.seg{display:inline-flex;border:1px solid var(--bd);border-radius:var(--rs);padding:2px;gap:2px;background:var(--sec)}
+.seg button{border:0;background:none;padding:4px 10px;border-radius:calc(var(--rs) - 2px);cursor:pointer;min-height:28px;font-size:13px;color:var(--mfg);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px color-mix(in srgb,CanvasText 14%,transparent);font-weight:600}
+.inp{border:1px solid var(--bd);background:var(--surface);border-radius:var(--rs);padding:6px 9px;min-height:34px;width:100%}
+textarea.inp{min-height:84px;resize:vertical;line-height:1.4}
+.pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:12px;padding:2px 7px;border-radius:5px;background:color-mix(in srgb,var(--pri) 12%,transparent);color:var(--primary-ink);border:1px solid color-mix(in srgb,var(--pri) 30%,transparent);white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.pill.sugg{background:none;border-style:dashed}
+.pill.fixed{font-family:var(--sans);background:var(--sec);color:var(--mfg);border-color:var(--bd)}
+.item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid transparent;background:none;border-radius:var(--rs);padding:6px 8px;cursor:pointer;min-height:36px}
+.item:hover{background:var(--sec)}
+.item[aria-selected="true"],.item.sel{background:var(--acc);border-color:var(--focus)}
+.item .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:var(--ok)}
+.dot.err{background:var(--err)}.dot.warn{background:var(--warn)}.dot.off{background:transparent;border:1.5px solid var(--mfg)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px}
+.kv dt{color:var(--mfg)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.callout{border:1px solid var(--bd);border-radius:var(--rs);padding:8px 10px;font-size:13px;display:grid;gap:6px}
+.callout.err{border-color:color-mix(in srgb,var(--err) 45%,transparent);background:color-mix(in srgb,var(--err) 6%,transparent)}
+.callout.warn{border-color:color-mix(in srgb,var(--warn) 50%,transparent);background:color-mix(in srgb,var(--warn) 7%,transparent)}
+.callout.ok{border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:color-mix(in srgb,var(--ok) 6%,transparent)}
+.callout.info{border-color:color-mix(in srgb,var(--status-info) 45%,transparent);background:color-mix(in srgb,var(--status-info) 6%,transparent)}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sep{height:1px;background:var(--bd);margin:10px 0}
+.invariant{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--mfg);padding:7px 12px}
+.invariant b{color:var(--fg)}
+
+/* ---------- 9:16 video frame (template content, fixed palette) ---------- */
+.frame-wrap,.starter .pv,.clip .th{container-type:inline-size}
+.vf{width:100%;aspect-ratio:9/16;position:relative;overflow:hidden;border-radius:6px;background:#141834;color:#fff;font-family:var(--sans);display:flex;flex-direction:column;padding:7cqw 6cqw;gap:3.5cqw;box-shadow:0 2px 12px rgba(0,0,0,.16)}
+.vf::before{content:"";position:absolute;inset:auto -30cqw -40cqw auto;width:90cqw;height:90cqw;border-radius:50%;background:#ffcf4a;opacity:.08}
+.vf [data-l],.vf [data-f]{position:relative;border-radius:1.5cqw;outline:0 solid transparent;transition:outline-color .15s}
+.vf .hot{outline:.8cqw solid #6ea8ff;outline-offset:1cqw}
+.vf .clk{cursor:pointer}
+.vf .clk:hover{outline:.5cqw dashed #6ea8ff;outline-offset:1cqw}
+.vf-brand{font-size:3.4cqw;font-weight:800;letter-spacing:.18em;color:#ffcf4a}
+.vf-q{font-weight:800;line-height:1.15;overflow-wrap:anywhere}
+.vf-q.over{outline:.7cqw dashed #ff6b5e!important;outline-offset:1cqw;max-height:52cqw;overflow:hidden}
+.vf-q.miss,.vf .phd{color:#9aa3d6;font-style:italic;font-weight:600}
+.vf-q.miss{outline:.7cqw dashed #ff6b5e;outline-offset:1cqw;padding:2cqw;font-size:6cqw}
+.vf-flag{position:absolute;right:-1cqw;top:-5cqw;background:#ff6b5e;color:#1b0a08;font-size:3.2cqw;font-weight:800;padding:.6cqw 2cqw;border-radius:2cqw;z-index:2}
+.vf-opts{display:grid;gap:2.6cqw;margin-top:auto}
+.vf-o{display:flex;align-items:center;gap:3cqw;background:#252b5c;border-radius:2.6cqw;padding:3cqw;font-size:5cqw;font-weight:650;min-height:12cqw}
+.vf-o b{display:grid;place-items:center;flex:0 0 auto;width:8cqw;height:8cqw;border-radius:50%;background:#ffcf4a;color:#141834;font-size:4.4cqw}
+.vf-o span{min-width:0;overflow-wrap:anywhere}
+.vf-o.dim{opacity:.38}
+.vf-o.win{background:#36d399;color:#0b2a1d}.vf-o.win b{background:#0b2a1d;color:#36d399}
+.vf-cd{align-self:center;width:30cqw;height:30cqw;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#ffcf4a calc(var(--p) * 1turn),#2a3166 0);margin:1cqw 0}
+.vf-cd span{display:grid;place-items:center;width:24cqw;height:24cqw;border-radius:50%;background:#141834;font-size:12cqw;font-weight:900;font-variant-numeric:tabular-nums}
+.vf-ex{background:#ffffff14;border-radius:2.6cqw;padding:3.4cqw;font-size:4.8cqw;line-height:1.3}
+.vf-ex small{display:block;font-size:3.2cqw;letter-spacing:.14em;color:#ffcf4a;font-weight:800;margin-bottom:1cqw}
+.vf-out{margin:auto;display:grid;justify-items:center;gap:4cqw;text-align:center}
+.vf-out .t{font-size:6cqw;font-weight:800}
+.vf-out .s{font-size:4cqw;color:#c5cbef}
+.frame-wrap{width:clamp(176px,28cqw,240px)}
+.stage-cap{font-size:12px;color:var(--mfg);text-align:center;max-width:320px}
+
+/* timeline: ruler, playhead, scene clips (arrangement after OpenFilm's bottom timeline; drawn from host tokens) */
+.tl{display:grid;grid-template-columns:50px minmax(0,1fr);row-gap:4px;width:100%}
+.pane.stage .tl{width:min(100%,560px)}
+.tl.compact{grid-template-columns:0 minmax(0,1fr)}
+.tl.compact .tl-h{display:none}
+.tl-h{color:var(--mfg);font-size:11px;align-self:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px}
+.tl-ruler{position:relative;height:20px;border-bottom:1px solid var(--bd)}
+.tl-ruler i{position:absolute;bottom:0;width:1px;height:4px;background:var(--bd)}
+.tl-ruler i.mj{height:7px;background:color-mix(in srgb,var(--fg) 30%,transparent)}
+.tl-ruler i span{position:absolute;bottom:8px;left:0;transform:translateX(-50%);font-size:10.5px;font-style:normal;color:var(--mfg);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tl-ruler i:first-child span{transform:none}
+.tl-scrub{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize}
+.tl-ruler:has(.tl-scrub:focus-visible){outline:2px solid var(--focus);outline-offset:1px;border-radius:3px}
+.lane{position:relative;height:26px;border-radius:4px;background:color-mix(in srgb,var(--fg) 4%,transparent)}
+.lane.sc{height:42px}
+.clip,.lspan,.snd{position:absolute;top:2px;bottom:2px;display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;white-space:nowrap;text-align:left;border-radius:4px;color:var(--fg);font-size:11px;padding:0 6px}
+.clip{padding-left:3px;border:1px solid color-mix(in srgb,var(--pri) 35%,var(--bd));background:color-mix(in srgb,var(--pri) 12%,var(--surface))}
+button.clip,.lspan,.snd{cursor:pointer}
+button.clip:hover,.lspan:hover,.snd:hover{background-color:color-mix(in srgb,var(--pri) 20%,var(--surface))}
+.clip.now{background-color:color-mix(in srgb,var(--pri) 22%,var(--surface))}
+.clip.var{background-image:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--pri) 14%,transparent) 6px 8px)}
+.clip.sel,.snd.sel{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+div.clip{opacity:.7;border-style:dashed}
+.clip .th{width:20px;flex:0 0 auto}
+.clip .th .vf,.starter .pv .vf{border-radius:2px;box-shadow:none;pointer-events:none}
+.clip .cl{display:grid;min-width:0;line-height:1.2}
+.clip .cl b,.clip .cl span{overflow:hidden;text-overflow:ellipsis}
+.clip .cl b{font-weight:600}
+.clip .cl span{color:var(--mfg);font-size:10.5px}
+.lspan{border:1px solid color-mix(in srgb,var(--focus) 55%,transparent);background:color-mix(in srgb,var(--focus) 14%,var(--surface))}
+.lspan .pill{font-size:10px;padding:0 4px}
+.lane.au::before{content:"";position:absolute;left:4px;right:4px;top:50%;height:2px;margin-top:-1px;background:color-mix(in srgb,var(--mfg) 40%,transparent)}
+.bed{position:absolute;left:4px;top:4px;bottom:4px;max-width:24%;display:flex;align-items:center;padding:0 5px;font-size:10.5px;color:var(--mfg);background:var(--surface);border-radius:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.snd{top:4px;bottom:4px;border:1px solid var(--bd);background:var(--surface);font-size:10.5px}
+.tl-phw{grid-column:2;position:relative;pointer-events:none;z-index:2}
+.tl-ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--focus)}
+.tl-ph::before{content:"";position:absolute;top:0;left:-4px;width:10px;height:8px;border-radius:2px 2px 5px 5px;background:var(--focus)}
+@container (max-width:599px){ .clip .th{display:none} }
+
+/* layers tree */
+.tree{display:grid;gap:2px}
+.tr-s{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:0;background:none;border-radius:var(--rs);padding:4px 6px;min-height:30px;cursor:pointer;font-size:13px}
+.tr-s:hover{background:var(--sec)}
+.tr-s .car{width:12px;color:var(--mfg);font-size:10px}
+.tr-s .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-s[aria-expanded="true"]{font-weight:600}
+.tr-l{display:grid;gap:2px;padding:0 0 4px 16px}
+.tr-l .item{min-height:32px;padding:4px 6px}
+.step{display:inline-flex;align-items:center;border:1px solid var(--bd);border-radius:var(--rs);overflow:hidden;vertical-align:middle}
+.step button{border:0;background:none;width:28px;height:28px;cursor:pointer;font-size:15px}
+.step button:hover{background:var(--sec)}
+.step span{min-width:30px;text-align:center;font-size:12.5px;font-variant-numeric:tabular-nums}
+.lyr .ico{width:22px;height:22px;display:grid;place-items:center;border-radius:5px;background:var(--sec);font-size:11px;font-weight:700;color:var(--mfg);flex:0 0 auto}
+
+/* starters (left panel before a template is chosen) */
+.starter{display:flex;gap:10px;align-items:center;width:100%;text-align:left;border:1px solid var(--bd);border-radius:var(--rs);background:none;padding:6px;cursor:pointer;min-width:0}
+.starter.cur{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.starter.na{cursor:default;color:var(--mfg)}
+.starter .pv{width:36px;flex:0 0 auto}
+.starter .stx{display:grid;gap:2px;min-width:0;font-size:13px}
+.starter .stx span{font-size:12px;color:var(--mfg)}
+.ghost-frame{display:grid;aspect-ratio:9/16;border:1.5px dashed var(--bd);border-radius:3px;place-items:center;color:var(--mfg);font-size:9.5px}
+.ghost-frame.sq{aspect-ratio:1}
+
+/* data grid */
+.dhead{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--bd)}
+.dsum{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;padding:8px 12px;border-bottom:1px solid var(--bd)}
+.dsum b{font-variant-numeric:tabular-nums}
+.tblwrap{overflow:auto;max-height:420px;position:relative}
+table.dg{border-collapse:separate;border-spacing:0;font-size:13px;min-width:100%}
+.dg th,.dg td{border-bottom:1px solid var(--bd);border-right:1px solid var(--bd);padding:6px 9px;text-align:left;vertical-align:top;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--surface)}
+.dg.tall td{white-space:normal;max-height:none;min-width:150px}
+.dg thead th{position:sticky;top:0;z-index:2;background:var(--sec);font-weight:600}
+.dg th .ty{display:block;font-weight:500;font-size:11px;color:var(--mfg);font-family:var(--sans)}
+.dg .pk{position:sticky;left:0;z-index:1;font-family:var(--mono);font-size:12px}
+.dg thead .pk{z-index:3}
+.dg td.bad{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--err) 70%,transparent);background:color-mix(in srgb,var(--err) 6%,var(--surface))}
+.dg td.wn{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--warn) 70%,transparent)}
+.dg td.edited::after{content:"edited";margin-left:6px;font-size:10.5px;color:var(--status-info);font-weight:700}
+.dg tr.exc td{opacity:.5;text-decoration:line-through}
+.dg tr.exc td.pk,.dg tr.exc td.st{text-decoration:none}
+.drop{margin:24px auto;max-width:520px;border:1.5px dashed var(--bd);border-radius:var(--r);padding:24px;display:grid;gap:12px;justify-items:center;text-align:center}
+
+/* connect */
+.col{display:grid;gap:3px;border:1px solid var(--bd);border-radius:var(--rs);padding:7px 8px;background:var(--surface);cursor:grab;text-align:left;min-width:0}
+.col:hover{border-color:var(--pri)}
+.col.dim{opacity:.55;cursor:default}
+.col .sv{font-size:12px;color:var(--mfg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@container (min-width:600px) and (max-width:899px){ .col{flex:1 1 170px} }
+.fld{display:grid;grid-template-columns:1fr auto;gap:4px 8px;align-items:center;border:1px solid var(--bd);border-radius:var(--rs);padding:7px 8px;cursor:pointer;background:var(--surface)}
+.fld:hover{background:var(--sec)}
+.fld.sel{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.fld.drag{border-color:var(--pri);background:color-mix(in srgb,var(--pri) 8%,var(--surface))}
+.fld .nm{font-weight:600;font-size:13px}
+.fld .sc{font-size:11.5px;color:var(--mfg)}
+.fld .act{grid-column:1/-1;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.x{border:0;background:none;cursor:pointer;color:var(--mfg);padding:0 4px;font-size:15px;min-height:26px}
+.x:hover{color:var(--err)}
+
+/* preview row list */
+.rows{max-height:380px;overflow:auto;display:grid;gap:2px;align-content:start}
+@container (min-width:600px) and (max-width:899px){ .rows{max-height:170px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))} }
+@container (max-width:599px){ .rows{max-height:220px} }
+.ritem .id{font-family:var(--mono);font-size:12px;flex:0 0 auto}
+.ritem .grow{font-size:12.5px;color:var(--mfg)}
+.ritem.exc .grow{text-decoration:line-through}
+.qbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mfg)}
+.qbar .btn{min-height:30px}
+
+/* export */
+.ex{padding:14px;display:grid;gap:14px}
+.ex-grid{display:grid;gap:14px}
+@container (min-width:760px){ .ex-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+.card{border:1px solid var(--bd);border-radius:var(--r);padding:12px;display:grid;gap:10px;background:var(--surface);min-width:0}
+.card h3{font-size:14.5px}
+.check{display:grid;gap:6px;margin:0;padding:0;list-style:none;font-size:13px}
+.check li{display:flex;gap:8px;align-items:flex-start}
+.check li i{font-style:normal;width:16px;flex:0 0 auto;text-align:center;font-weight:800}
+.bar{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--sec)}
+.bar span{display:block;height:100%;transition:width .2s}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(22px,1fr));gap:3px}
+.tile{aspect-ratio:9/12;border-radius:3px;background:var(--sec);border:1px solid var(--bd)}
+.tile.rendering{background:color-mix(in srgb,var(--status-info) 55%,transparent);border-color:var(--status-info);animation:pulse 1s infinite alternate}
+.tile.done{background:color-mix(in srgb,var(--ok) 70%,transparent);border-color:transparent}
+.tile.failed{background:var(--err);border-color:var(--err)}
+.tile.cancelled{background:repeating-linear-gradient(45deg,var(--sec) 0 3px,transparent 3px 6px)}
+@keyframes pulse{to{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.tile.rendering{animation:none}}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.files{display:grid;gap:2px;max-height:260px;overflow:auto}
+.file{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:4px 6px;border-radius:var(--rs);font-size:13px}
+.file:hover{background:var(--sec)}
+.file .fn{font-family:var(--mono);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+pre.man{margin:0;font-family:var(--mono);font-size:11.5px;line-height:1.5;background:var(--sec);border-radius:var(--rs);padding:8px;max-height:200px;overflow:auto;white-space:pre}
+
+/* designer notes (outside product) */
+.notes{margin-top:12px;border:1px dashed var(--bd);border-radius:var(--r);padding:12px 14px;display:grid;gap:10px}
+.notes .nh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.notes .nh .lbl{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mfg)}
+.notes h3{font-size:15.5px}
+.ncols{display:grid;gap:12px}
+@media (min-width:680px){.ncols{grid-template-columns:1fr 1.35fr}}
+.notes ol,.notes ul{margin:4px 0 0;padding-left:18px;display:grid;gap:4px;font-size:13.5px}
+.notes h4{font-size:12.5px;color:var(--mfg);font-weight:700}
+.away{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px;padding:6px 10px;border-radius:var(--rs);background:var(--sec)}
+
+/* deep sections */
+.deep{margin-top:18px;display:grid;gap:8px}
+details.acc{border:1px solid var(--bd);border-radius:var(--r)}
+details.acc>summary{cursor:pointer;padding:12px 14px;font-weight:650;font-size:15px;list-style:none;display:flex;align-items:center;gap:8px}
+details.acc>summary::-webkit-details-marker{display:none}
+details.acc>summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--mfg);border-bottom:2px solid var(--mfg);transform:rotate(-45deg);transition:transform .15s;flex:0 0 auto}
+details.acc[open]>summary::before{transform:rotate(45deg)}
+details.acc>summary .muted{font-weight:400;font-size:13px;margin-left:auto}
+.dbody{padding:0 14px 14px;display:grid;gap:12px}
+.refs{display:grid;gap:10px}
+.ref{border:1px solid var(--bd);border-radius:var(--rs);padding:10px;display:grid;gap:8px;grid-template-columns:1fr}
+@media (min-width:640px){.ref{grid-template-columns:132px 1fr}}
+.ref h4{font-size:14px}
+.ref dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0;font-size:13px}
+.ref dt{font-weight:650;color:var(--mfg)}
+.ref dd{margin:0}
+.mini{border:1px solid var(--bd);border-radius:6px;background:var(--sec);height:96px;padding:6px;display:grid;gap:4px;align-content:start;font-size:10px;overflow:hidden}
+.mini .ln{height:6px;border-radius:3px;background:var(--bd)}
+.mini .pl{font-family:var(--mono);font-size:9.5px;padding:1px 4px;border-radius:3px;background:color-mix(in srgb,var(--pri) 15%,transparent);color:var(--primary-ink);justify-self:start}
+.alts{display:grid;gap:10px}
+@media (min-width:640px){.alts{grid-template-columns:repeat(3,1fr)}}
+.alt{border:1px solid var(--bd);border-radius:var(--rs);padding:10px;display:grid;gap:8px;align-content:start}
+.alt.pick{border-color:var(--fg);box-shadow:0 0 0 1px var(--fg)}
+.alt .sw{height:70px;border-radius:5px;overflow:hidden;display:grid}
+.sys{display:grid;gap:12px}
+@media (min-width:640px){.sys{grid-template-columns:1fr 1fr}}
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+.swatch{border:1px solid var(--bd);border-radius:var(--rs);overflow:hidden;font-size:12px}
+.swatch i{display:block;height:28px}
+.swatch span{display:block;padding:4px 6px}
+.state-demo{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.force-hover{background:var(--sec)!important}
+.force-focus{outline:2px solid var(--focus);outline-offset:2px}
+.wt table.plain{border-collapse:collapse;font-size:13px;width:100%}
+.plain th,.plain td{border-bottom:1px solid var(--bd);padding:6px 8px;text-align:left;vertical-align:top}
+.plain th{color:var(--mfg);font-weight:600}
+</style>
+<link rel="stylesheet" href="/prototype-theme.css">
+<script>
+(() => {
+ const query = new URLSearchParams(location.search);
+ const setAppearance = (mode, theme) => {
+  document.documentElement.dataset.mode = mode === 'walkthrough' ? 'walkthrough' : 'studio';
+  document.documentElement.dataset.theme = theme === 'dark' ? 'dark' : 'light';
+ };
+ setAppearance(query.get('mode'), query.get('theme'));
+ window.addEventListener('message', (event) => {
+  if (event.origin !== location.origin || event.source !== window.parent || event.data?.type !== 'rowcast:appearance') return;
+  setAppearance(event.data.mode, event.data.theme);
+ });
+})();
+</script>
+</head>
+<body>
+<div class="wt" id="wt">
+
+<header class="intro">
+  <div class="facts"><span class="tag pro">Opus · design walkthrough</span><span class="tag">Interactive prototype</span><span class="tag">UI reference: OpenFilm studio layout</span></div>
+  <h1>From a spreadsheet to a batch of finished videos</h1>
+  <p class="lede">A proposed workspace for an open-source video tool. Follow a riddle template through editing, data connections, review and batch delivery. <b>One row becomes one complete video.</b></p>
+  <p class="simnote"><b>Try the workflow.</b> Use Next to follow the tour, or explore the workspace tabs. Video rendering and file delivery are simulated; the downloadable <code>manifest.csv</code> is real demo data. “Rowcast” is a working name. The docked editor layout follows the open-source OpenFilm studio (MIT); the spreadsheet, connection and batch screens are our own additions.</p>
+</header>
+
+<nav class="tour" aria-label="Guided tour (not part of the product)">
+  <div class="tour-head">
+    <span class="lbl">Guided tour</span>
+    <h2 id="tourTitle">—</h2>
+    <button class="navbtn" data-act="tprev" id="tPrev">← Previous</button>
+    <button class="navbtn" data-act="tnext" id="tNext">Next →</button>
+  </div>
+  <div class="tour-steps" id="tourSteps" role="list"></div>
+</nav>
+
+<section class="app" id="app" aria-label="Product mockup: Rowcast workspace">
+  <div class="atop">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 7h12M5 11h12M5 15h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M14 13.5l4 2.5-4 2.5z" fill="currentColor"/></svg>
+      <span class="name">Daily riddles</span><span class="rev" id="rev"></span>
+    </div>
+    <div class="tabs" role="navigation" aria-label="Workspace" id="tabs"></div>
+  </div>
+  <div class="abody" id="view"></div>
+  <div class="invariant"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="1" y="3" width="5" height="8" rx="1" fill="none" stroke="currentColor"/><path d="M7 7h2" stroke="currentColor"/><rect x="9.5" y="2" width="3.5" height="10" rx="1" fill="currentColor"/></svg><span><b>1 row → 1 complete video</b> (all 4 scenes). Rows never merge silently.</span></div>
+</section>
+
+<aside class="notes" id="notes" aria-label="Designer notes (outside the product)"></aside>
+
+<div class="deep">
+<details class="acc" id="refsAcc">
+  <summary>References and what each one changed <span class="muted">8 sources · OpenFilm primary · no hands-on sessions</span></summary>
+  <div class="dbody">
+    <p class="small muted"><b>OpenFilm</b> is the primary UI reference. Its files were fetched from <code>raw.githubusercontent.com</code> pinned to commit <code>b7673b585e3e…</code> on 31 Oct 2026 and saved in <code>research/sources/ui/openfilm/</code>, with three frames taken from its public README demo. That is source and demo evidence, not a session in their editor. The other pages are secondary interaction references, fetched as text through a public reader (<code>r.jina.ai</code>) on 31 Oct 2026. Copies are saved in <code>research/sources/</code> and <code>research/sources/ui/</code>. Nobody signed into Canva, Figma, Airtable or GitHub for this work. Each card separates what the document <b>says</b> (DOC) from the pattern we <b>derived</b> (INFERRED) and what we built from it (OUR UI).</p>
+    <div class="refs" id="refs"></div>
+    <p class="small muted">Considered but not fetched: Frame.io review/status docs. They are not cited as an influence. Competitor pages from the earlier research (Shotstack, Bannerbear) shaped the batch/recovery thinking in <code>product-workflow.md</code>, but they have no direct UI mapping here.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Visual direction: “docked studio, after OpenFilm” <span class="muted">and what changed from the first pass</span></summary>
+  <div class="dbody">
+    <p>The editor is a set of calm, docked panes on a slightly darker board. Narrow seams and small corners separate them instead of heavy borders. Layers sit on the left, the canvas in the middle, the inspector on the right, and a real timeline runs across the bottom. This follows OpenFilm’s studio. All colours come from the host theme, so the board, panes and the <b>canvas surround follow light or dark</b>. Only the video template keeps its own fixed colours, because they are content. Colour still means something: primary marks spreadsheet data and the main action, the ring marks selection and the playhead, and status colours mark done, warning, blocked and in progress.</p>
+    <div class="alts">
+      <div class="alt pick">
+        <div class="sw" style="grid-template-columns:1fr 1.4fr 1fr;grid-template-rows:1fr 16px;gap:3px;padding:3px;background:color-mix(in srgb,var(--bg) 92%,#000)"><i style="background:var(--surface);border-radius:2px"></i><i style="background:var(--surface);border-radius:2px;display:grid;place-items:center"><i style="width:18px;height:32px;background:#141834;border-radius:2px"></i></i><i style="background:var(--surface);border-radius:2px"></i><i style="grid-column:1/-1;background:var(--surface);border-radius:2px"></i></div>
+        <b>Chosen: docked studio (OpenFilm)</b>
+        <p class="small">A real editor layout, kept calm: theme panes, seams, a restrained header. Spreadsheet, connection and batch screens reuse the same panes. <b>Our additions:</b> data pills, the row-driven countdown clip, review and retry screens.</p>
+      </div>
+      <div class="alt">
+        <div class="sw" style="grid-template-columns:1fr 1.4fr 1fr;background:var(--surface)"><div style="border-right:1px solid var(--bd)"></div><div style="background:#1d1f24;display:grid;place-items:center"><i style="width:22px;height:38px;background:#141834;border-radius:3px;outline:1px solid #ffcf4a55"></i></div><div style="border-left:1px solid var(--bd)"></div></div>
+        <b>Superseded: workbench with a constant dark stage</b>
+        <p class="small">Our first pass put the video on a dotted dark stage in every theme, with scene cards and a short strip of segments. It did not feel like an editor, and the dark block fought the light theme. <b>Kept:</b> theme-following chrome, meaning-only colour, monospace column names.</p>
+      </div>
+      <div class="alt">
+        <div class="sw" style="background:linear-gradient(120deg,#7d2ae8,#00c4cc);grid-template-columns:40px 1fr"><div style="background:#ffffff22"></div><div style="display:grid;place-items:center"><i style="width:26px;height:40px;background:#fff;border-radius:4px"></i></div></div>
+        <b>Not chosen: playful, Canva-like</b>
+        <p class="small">Good for browsing templates, but brand gradients compete with the user’s video colours and airy flyouts are too sparse for 100-row review. <b>Kept:</b> starting from a template, plain-language labels.</p>
+      </div>
+    </div>
+    <p class="small muted">We no longer reject the pro-editor arrangement. We still avoid forcing an all-dark, dense grey-on-black look in a light theme, and we keep tracks fixed to four scenes rather than freeform multi-track editing.</p>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Style system <span class="muted">roles, type, controls, states, density</span></summary>
+  <div class="dbody sys">
+    <div class="card"><h3>Colour roles (live from host theme)</h3>
+      <div class="swatches">
+        <div class="swatch"><i style="background:color-mix(in srgb,var(--card,Canvas) 96%,#fff)"></i><span><b>pane</b> from card</span></div>
+        <div class="swatch"><i style="background:var(--sec)"></i><span><b>secondary</b> hover, headers</span></div>
+        <div class="swatch"><i style="background:var(--bd)"></i><span><b>border</b> structure</span></div>
+        <div class="swatch"><i style="background:var(--pri)"></i><span><b>primary</b> data link + main action</span></div>
+        <div class="swatch"><i style="background:var(--focus)"></i><span><b>ring</b> selection, focus, playhead</span></div>
+        <div class="swatch"><i style="background:color-mix(in srgb,var(--bg) 95%,#000)"></i><span><b>board</b> seams between panes</span></div>
+        <div class="swatch"><i style="background:var(--ok)"></i><span><b>success</b> done, valid</span></div>
+        <div class="swatch"><i style="background:var(--warn)"></i><span><b>warning</b> will proceed</span></div>
+        <div class="swatch"><i style="background:var(--err)"></i><span><b>destructive</b> blocks / failed</span></div>
+        <div class="swatch"><i style="background:var(--status-info)"></i><span><b>info</b> rendering, edited</span></div>
+      </div>
+    </div>
+    <div class="card"><h3>Type</h3>
+      <p style="font-size:17px;font-weight:650">Section title 17/650</p>
+      <p style="font-size:14px">Body and table cells 14 (13 in dense grids)</p>
+      <p class="ph" style="margin:0">Panel label 12.5 / 600, sentence case</p>
+      <p><span class="pill">countdown_seconds</span> <span class="small muted">mono = a real column name</span></p>
+      <p class="small muted">Numbers use tabular figures so counts and timecodes don’t jitter. Nothing interactive is smaller than 12.5px or 28px tall (34px for main controls).</p>
+    </div>
+    <div class="card"><h3>Controls and states</h3>
+      <div class="state-demo"><span class="btn pri">Primary</span><span class="btn">Secondary</span><span class="btn force-hover">Hover</span><span class="btn force-focus">Focus</span><span class="btn" style="opacity:.5">Disabled</span></div>
+      <div class="state-demo"><span class="seg"><button type="button" tabindex="-1" aria-pressed="true">Compact</button><button type="button" tabindex="-1" aria-pressed="false">Tall</button></span><span class="pill">question</span><span class="pill sugg">option_a?</span><span class="pill fixed">Fixed</span></div>
+      <div class="state-demo"><span class="badge ok">Done</span><span class="badge warn">1 warning</span><span class="badge err">3 to fix</span><span class="badge info">Rendering</span><span class="badge">Queued</span></div>
+      <p class="small muted">Selected = ring border plus accent fill. Suggested = dashed. Connected = solid data pill. Blocking = red outline on the exact cell or layer, never just a toast.</p>
+    </div>
+    <div class="card"><h3>Spacing, radii, density</h3>
+      <table class="plain"><tr><th>Token</th><th>Value</th></tr>
+      <tr><td>space</td><td>4 · 8 · 12 · 16 (panels pad 12)</td></tr>
+      <tr><td>radius</td><td>panes and buttons host <code>--radius</code> ×0.75 (4–8 px); small controls ×0.6; app frame +4</td></tr>
+      <tr><td>seams</td><td>6 px of board between panes</td></tr>
+      <tr><td>grid rows</td><td>compact ≈32px · tall wraps the full cell</td></tr>
+      <tr><td>editor</td><td>≥900px: layers · canvas · inspector over the timeline · 600–899: canvas beside layers + inspector, timeline below · &lt;600: stacked, canvas then timeline</td></tr></table>
+    </div>
+  </div>
+</details>
+
+<details class="acc">
+  <summary>Evidence, verification and limits</summary>
+  <div class="dbody">
+    <ul class="small" style="margin:0;padding-left:18px;display:grid;gap:4px">
+      <li><b>SOURCE:</b> OpenFilm (OF) files pinned to commit <code>b7673b5</code>: README, LICENSE (MIT), <code>globals.css</code>, <code>ProjectView.tsx</code>, layer, inspector, viewer, timeline and export components, plus frames from the public README demo. We read them; we did not run or sign into OpenFilm. Our CSS and JS are original and copy no OpenFilm code.</li>
+      <li><b>DOC:</b> Canva help (C1, C3) and Creatomate (K2) were read earlier as reader snapshots. Canva help returns HTTP 403 to direct requests. Figma (R1, R2), Airtable (R3) and GitHub (R4) were read for this page. These are documents, not sessions.</li>
+      <li><b>OBS:</b> the synthetic demo adapts <code>research/fixtures</code> and adds validation cases: repeated sample riddles, a Hindi row, an Arabic (right-to-left) row, an overlong question, an empty question, and an invalid answer letter plus negative countdown.</li>
+      <li><b>Not observed:</b> Canva’s signed-in Bulk Create for video, its multi-scene behaviour, or its real export. REA was not run because its compiled runtime is missing.</li>
+      <li><b>PROPOSED:</b> how the OpenFilm layout is adapted (tree, inspector sections, layer and audio lanes, the hatched per-row countdown clip), every screen, the default timing (4 s question + per-row countdown + 4 s reveal + 2 s outro), the 62 px minimum text size, the fit threshold and the file naming.</li>
+      <li><b>Simulated here:</b> rendering, the two failures and the retry, the test export, ZIP contents and per-file downloads. Only <code>manifest.csv</code> is a real file.</li>
+    </ul>
+  </div>
+</details>
+</div>
+</div>
+
+<script>
+(()=>{
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(3,"0");
+const fmt=t=>{t=Math.max(0,t);const m=Math.floor(t/60),s=t-m*60;return m+":"+(s<10?"0":"")+s.toFixed(1)};
+
+/* ---------- demo data (mirrors research/fixtures) ---------- */
+const BASE=[
+ ["What has keys but cannot open a lock?","A piano","A map","A clock","A river","A","A piano has musical keys.",5],
+ ["What gets wetter as it dries?","A cloud","A towel","A sponge","A lake","B","A towel absorbs water as it dries something.",5],
+ ["What has a face and two hands but no arms or legs?","A mirror","A clock","A book","A tree","B","A clock has a face and hands.",5],
+ ["What can travel around the world while staying in a corner?","A coin","A stamp","A ball","A map","B","A stamp stays in the corner of an envelope.",6],
+ ["What has many teeth but cannot bite?","A shark","A saw","A comb","A spoon","C","A comb has teeth for hair.",5],
+ ["किसके पास चाबियाँ हैं, लेकिन वह ताला नहीं खोल सकता?","पियानो","नक्शा","घड़ी","नदी","A","पियानो में संगीत की चाबियाँ होती हैं।",5],
+ ["ما الذي له مفاتيح ولا يفتح قفلاً؟","بيانو","خريطة","ساعة","نهر","A","للبيانو مفاتيح موسيقية.",5],
+ ["What goes up but never comes down?","Your age","A balloon","Smoke","Rain","A","Age only ever increases.",7]
+];
+const LONGQ="Consider a very long question with several clauses, repeated context, and a deliberately constrained text area. The layout must preserve all meaningful words while showing an explicit overflow warning if the minimum font size is reached, instead of clipping.";
+const COLS=[["id","Row ID"],["question","Text"],["option_a","Text"],["option_b","Text"],["option_c","Text"],["option_d","Text"],["correct_option","Choice A–D"],["answer_explanation","Text"],["countdown_seconds","Number"],["output_name","Text"]];
+const ROWS=[];
+for(let i=1;i<=100;i++){const b=BASE[(i-1)%BASE.length];ROWS.push({n:i,id:"R"+pad(i),question:b[0],option_a:b[1],option_b:b[2],option_c:b[3],option_d:b[4],correct_option:b[5],answer_explanation:b[6],countdown_seconds:String(b[7]),output_name:"riddle-"+pad(i),edited:new Set()})}
+ROWS[36].question=LONGQ;ROWS[57].question="";ROWS[90].correct_option="E";ROWS[90].countdown_seconds="-1";ROWS[45].output_name="riddle-045";
+const SAMPLE=ROWS[0];
+
+const FIELDS=[
+ {id:"q",label:"Question text",scenes:"Question, Countdown",col:"question",sugg:true,kind:"text"},
+ {id:"a",label:"Option A",scenes:"All except Outro",col:"option_a",sugg:true,kind:"text"},
+ {id:"b",label:"Option B",scenes:"All except Outro",col:"option_b",sugg:true,kind:"text"},
+ {id:"c",label:"Option C",scenes:"All except Outro",col:"option_c",sugg:true,kind:"text"},
+ {id:"d",label:"Option D",scenes:"All except Outro",col:"option_d",sugg:true,kind:"text"},
+ {id:"hl",label:"Correct-option highlight",scenes:"Reveal · rule",col:"correct_option",sugg:false,kind:"choice"},
+ {id:"ex",label:"Reveal explanation",scenes:"Reveal",col:"answer_explanation",sugg:true,kind:"text"},
+ {id:"cd",label:"Countdown duration",scenes:"Countdown · seconds",col:"countdown_seconds",sugg:false,kind:"number"}
+];
+const COLKIND={id:"id",correct_option:"choice",countdown_seconds:"number",output_name:"text"};
+const SCENES=[{k:"q",name:"Question",layers:["bg","brand","q","opts"]},{k:"cd",name:"Countdown",layers:["q","opts","cd","tick"]},{k:"r",name:"Reveal",layers:["opts","hl","ex","chime"]},{k:"o",name:"Outro",layers:["logo","tag"]}];
+const LAYERS={bg:{n:"Background",i:"▢"},brand:{n:"Series label",i:"T"},q:{n:"Question text",i:"T",f:["q"]},opts:{n:"Options A–D",i:"≡",f:["a","b","c","d"]},cd:{n:"Countdown timer",i:"◔",f:["cd"]},tick:{n:"Tick sound",i:"♪"},hl:{n:"Correct-option highlight",i:"✓",f:["hl"]},ex:{n:"Explanation",i:"T",f:["ex"]},chime:{n:"Reveal chime",i:"♪"},logo:{n:"Logo",i:"◆"},tag:{n:"Tagline",i:"T"}};
+const FAIL=new Set(["R023","R064"]);
+
+const S={view:"template",step:0,tpl:false,scene:0,layer:"q",dur:{q:4,r:4,o:2},cdMode:"column",imported:false,sheet:"Sheet1",dFilter:"all",tall:false,links:{},selField:"q",cmsg:"",row:1,t:1.2,playing:false,rFilter:"all",search:"",excluded:new Set(),test:"none",batch:null,rev:3,zip:false,fileNote:"",showAll:false};
+
+/* ---------- derived ---------- */
+const reqFields=()=>FIELDS.filter(f=>f.id!=="cd"||S.cdMode==="column");
+const linked=()=>reqFields().filter(f=>S.links[f.id]).length;
+const pending=()=>reqFields().filter(f=>!S.links[f.id]&&f.sugg);
+function fit(q){const n=[...q].length;if(n<=60)return{n,px:82,cq:7.6};if(n<=95)return{n,px:72,cq:6.6};if(n<=130)return{n,px:62,cq:5.8};return{n,px:62,cq:5.8,over:true}}
+const cdOk=r=>{const c=Number(r.countdown_seconds);return Number.isInteger(c)&&c>=1&&c<=30};
+const cdSec=r=>S.cdMode==="fixed"?5:(r&&cdOk(r)?Number(r.countdown_seconds):5);
+const durs=r=>[S.dur.q,cdSec(r),S.dur.r,S.dur.o];
+const total=r=>durs(r).reduce((a,b)=>a+b,0);
+function names(){const seen=new Map(),out={};ROWS.forEach(r=>{const k=r.output_name;if(seen.has(k)){out[r.n]={file:k+"-"+r.id+".mp4",dupOf:seen.get(k)}}else{seen.set(k,r.id);out[r.n]={file:k+".mp4"}}});return out}
+function issues(r){const o=[],q=r.question.trim(),N=names()[r.n];
+ if(!q)o.push({sev:"err",col:"question",msg:"Question is empty. Scenes 1–2 need it."});
+ else if(fit(q).over)o.push({sev:"err",col:"question",msg:`Question still overflows at the 62 px minimum (${fit(q).n} characters; up to 130 fit).`});
+ if(!/^[ABCD]$/.test(r.correct_option))o.push({sev:"err",col:"correct_option",msg:`“${r.correct_option}” is not A–D, so no option can be highlighted.`});
+ if(S.cdMode==="column"&&!cdOk(r))o.push({sev:"err",col:"countdown_seconds",msg:`“${r.countdown_seconds}” is not a whole number of seconds from 1 to 30.`});
+ if(N.dupOf)o.push({sev:"warn",col:"output_name",msg:`Same file name as ${N.dupOf}. It will be saved as ${N.file}.`});
+ return o}
+const blocked=r=>issues(r).some(i=>i.sev==="err");
+const included=()=>ROWS.filter(r=>!S.excluded.has(r.id));
+const blockRows=()=>included().filter(blocked);
+const warnRows=()=>included().filter(r=>issues(r).some(i=>i.sev==="warn"));
+const rowStatus=r=>S.excluded.has(r.id)?"off":blocked(r)?"err":issues(r).length?"warn":"ok";
+const bump=()=>{S.rev++};
+
+/* ---------- video frame ---------- */
+function val(fid,row,mode){const f=FIELDS.find(x=>x.id===fid);if(mode==="template")return SAMPLE[f.col];const c=S.links[fid];return c?row[c]:null}
+function sceneAt(t,r){const d=durs(r);let acc=0;for(let i=0;i<4;i++){if(t<acc+d[i]||i===3)return{i,lt:t-acc,d:d[i],start:acc};acc+=d[i]}}
+function frame(row,t,o={}){
+ const mode=o.mode||"preview",sel=o.sel||"",clk=o.clk?" clk":"";
+ const sc=sceneAt(Math.min(t,total(row)-.001),row);
+ const H=(l,cls="")=>`data-l="${l}" class="${cls}${(sel===l)?" hot":""}${clk}"`;
+ const brand=`<div ${H("brand","vf-brand")}>RIDDLE RUSH · ${esc(row.id)}</div>`;
+ const opt=(L,st)=>{const fid=L.toLowerCase(),v=val(fid,row,mode);return `<div data-f="${fid}" class="vf-o ${st}${(sel===fid)?" hot":""}${clk}"><b>${L}</b><span dir="auto" class="${v==null?"phd":""}">${v==null?"{"+FIELDS.find(f=>f.id===fid).label+"}":esc(v)}</span></div>`};
+ let qhtml="";
+ if(sc.i<2){const v=val("q",row,mode);
+  if(v==null)qhtml=`<div ${H("q","vf-q phd")} style="font-size:6.4cqw">{Question text}</div>`;
+  else if(!v.trim())qhtml=`<div ${H("q","vf-q miss")}><span class="vf-flag">Missing</span>question is empty</div>`;
+  else{const F=fit(v);qhtml=`<div ${H("q","vf-q"+(F.over?" over":""))} dir="auto" style="font-size:${F.cq*(sc.i===1?.82:1)}cqw">${F.over?'<span class="vf-flag">Overflow</span>':""}${esc(v)}</div>`}}
+ let body="";
+ if(sc.i===0)body=brand+qhtml+`<div ${H("opts","vf-opts")}>${["A","B","C","D"].map(L=>opt(L,"")).join("")}</div>`;
+ else if(sc.i===1){const rem=Math.max(1,Math.ceil(sc.d-sc.lt));body=brand+qhtml+`<div ${H("cd","vf-cd")} style="--p:${(1-sc.lt/sc.d).toFixed(3)}"><span>${S.links.cd||mode==="template"||S.cdMode==="fixed"?rem:"?"}</span></div><div ${H("opts","vf-opts")} style="margin-top:0">${["A","B","C","D"].map(L=>opt(L,"")).join("")}</div>`}
+ else if(sc.i===2){const ans=mode==="template"?SAMPLE.correct_option:(S.links.hl?row.correct_option:"");const okAns=/^[ABCD]$/.test(ans);
+  const ex=val("ex",row,mode);
+  body=brand+`<div ${H("opts","vf-opts")} style="margin-top:4cqw">${["A","B","C","D"].map(L=>opt(L,okAns?(L===ans?"win":"dim"):"")).join("")}</div>`+
+  (okAns||mode==="template"?"":`<div class="vf-q miss" style="font-size:4.6cqw"><span class="vf-flag">No match</span>highlight rule: ${S.links.hl?"“"+esc(ans)+"” is not A–D":"not connected"}</div>`)+
+  `<div ${H("ex","vf-ex")} dir="auto"><small>ANSWER</small>${ex==null?'<span class="phd">{Reveal explanation}</span>':esc(ex)}</div>`}
+ else body=`<div class="vf-out"><svg ${H("logo")} width="60" height="60" viewBox="0 0 60 60" aria-hidden="true" style="width:26cqw;height:26cqw"><circle cx="30" cy="30" r="27" fill="#ffcf4a"/><text x="30" y="40" font-size="30" text-anchor="middle" font-weight="900" fill="#141834">?</text></svg><div ${H("tag","t")}>New riddle every day</div><div class="s">Follow for tomorrow’s</div></div>`;
+ return `<div class="vf" aria-label="Frame at ${fmt(t)}, ${SCENES[sc.i].name} scene">${body}</div>`}
+
+const pct=(x,T)=>(x/T*100).toFixed(3)+"%";
+const starts=r=>{let a=0;return durs(r).map(x=>{const s=a;a+=x;return s})};
+const tc=t=>{t=Math.round(t);return Math.floor(t/60)+":"+String(t%60).padStart(2,"0")};
+function vbar(row){const T=total(row),i=sceneAt(Math.min(S.t,T-.001),row).i;
+ return `<div class="vbar"><span id="tp-tc">${fmt(S.t)} / ${fmt(T)}</span><button class="btn sm" data-act="play" aria-label="${S.playing?"Pause":"Play"}">${S.playing?"❚❚ Pause":"▶ Play"}</button><span class="vs" id="tp-sc">${SCENES[i].name}</span></div>`}
+/* o.edit: clips select scenes + layer/sound lanes · o.thumbs: frame thumbnails · o.ghost: read-only structure · o.compact: no lane labels */
+function timeline(row,o={}){const d=durs(row),T=total(row),st=starts(row),now=sceneAt(Math.min(S.t,T-.001),row).i,P=x=>pct(x,T),W=x=>`calc(${P(x)} - 2px)`;
+ const every=T<=16?2:T<=32?4:10;let ticks="";for(let s=0;s<=T;s++){const mj=s%every===0;ticks+=`<i aria-hidden="true" class="${mj?"mj":""}" style="left:${P(s)}">${mj&&(s===0||T-s>=1)?`<span>${tc(s)}</span>`:""}</i>`}
+ const clips=d.map((x,i)=>{const per=i===1&&S.cdMode==="column",dl=per?`${x}s · per row`:`${x}s`;
+  const inner=`${o.thumbs?`<span class="th" aria-hidden="true">${frame(SAMPLE,st[i]+(i===1?1:.5),{mode:"template"})}</span>`:""}<span class="cl"><b>${i+1} ${SCENES[i].name}</b><span>${dl}</span></span>`;
+  const cls=`clip${per?" var":""}${o.edit&&S.scene===i?" sel":""}${!o.ghost&&i===now?" now":""}`,sty=`left:${P(st[i])};width:${W(x)}`;
+  return o.ghost?`<div class="${cls}" style="${sty}">${inner}</div>`:`<button class="${cls}" style="${sty}" data-act="${o.edit?"scene":"seek"}" data-i="${i}" data-t="${st[i]+.05}"${o.edit?` aria-pressed="${S.scene===i}"`:""} aria-label="${SCENES[i].name} scene, ${dl}">${inner}</button>`}).join("");
+ const G=(r,c)=>`style="grid-area:${r}/${c}"`;
+ let lanes=`<span class="tl-h" ${G(2,1)}>Scenes</span><div class="lane sc" ${G(2,2)}>${clips}</div>`,n=2;
+ if(o.edit){const L=LAYERS[S.layer],on=SCENES.map(x=>x.layers.includes(S.layer)),spans=[];
+  for(let i=0;i<4;i++)if(on[i]){let j=i;while(j<3&&on[j+1])j++;spans.push([st[i],st[j]+d[j]]);i=j}
+  lanes+=`<span class="tl-h" ${G(3,1)}>Layer</span><div class="lane" ${G(3,2)}>${spans.map(([a,b])=>`<button class="lspan" data-act="seek" data-t="${a+.05}" style="left:${P(a)};width:${W(b-a)}" aria-label="${L.n}: on screen ${fmt(a)} to ${fmt(b)}. Jump to start">${L.f?'<span class="pill">{ }</span>':""}<span>${L.n}</span></button>`).join("")}</div>`;
+  lanes+=`<span class="tl-h" ${G(4,1)}>Audio</span><div class="lane au" ${G(4,2)}><span class="bed" title="Music bed: fixed, plays under all scenes">♪ Music bed · fixed</span>${[["tick",1],["chime",2]].map(([l,k])=>`<button class="snd${S.layer===l?" sel":""}" data-act="layer" data-l="${l}" style="left:${P(st[k])};width:${W(d[k])}" aria-pressed="${S.layer===l}">♪ ${LAYERS[l].n}</button>`).join("")}</div>`;n=4}
+ const ruler=`<span class="tl-h" aria-hidden="true" ${G(1,1)}></span><div class="tl-ruler" ${G(1,2)}>${ticks}${o.ghost?"":`<input class="tl-scrub" id="tp-scrub" type="range" min="0" max="${T}" step="0.05" value="${Math.min(S.t,T)}" aria-label="Scrub timeline">`}</div>`;
+ const ph=o.ghost?"":`<div class="tl-phw" style="grid-row:1 / span ${n}" aria-hidden="true"><i class="tl-ph" id="tp-ph" style="left:${P(Math.min(S.t,T))}"></i></div>`;
+ return `<div class="tl${o.compact?" compact":""}">${ruler}${lanes}${ph}</div>`}
+
+/* ---------- views ---------- */
+const V={};
+V.template=()=>{
+ const tlbar=(x,g)=>`<div class="pbar"><b>Timeline</b><span class="muted">${x}</span><span class="sp"></span>${g?"":`<span class="small muted">Countdown: ${S.cdMode==="column"?'<span class="pill">countdown_seconds</span> per row':"fixed 5 s"}</span>`}</div>`;
+ if(!S.tpl){const cols=[...new Set(FIELDS.map(f=>f.col))];
+  return `<div class="ed"><div class="pane flush lyrp"><div class="pbar"><b>Starters</b></div><div class="pbody stack">
+ <button class="starter cur" data-act="pickTpl"><span class="pv" aria-hidden="true">${frame(SAMPLE,5.5,{mode:"template"})}</span><span class="stx"><b>Riddle Rush</b><span>9:16 · 4 scenes · ~15 s</span></span></button>
+ <div class="starter na"><span class="pv"><span class="ghost-frame sq">1:1</span></span><span class="stx"><b>Quiz card</b><span>Not in this prototype</span></span></div>
+ <div class="starter na"><span class="pv"><span class="ghost-frame">9:16</span></span><span class="stx"><b>Blank video</b><span>Not in this prototype</span></span></div></div></div>
+ <div class="pane stage viewp"><div class="vtop small muted"><span>Starter preview · Riddle Rush</span><span>Countdown moment</span></div><div class="frame-wrap">${frame(SAMPLE,5.5,{mode:"template"})}</div><button class="btn pri" data-act="pickTpl">Use this starter</button></div>
+ <div class="pane flush inspp"><div class="pbar"><b>Inspector</b></div><div class="pbody"><p class="ph">Riddle Rush expects these columns</p><div class="row">${cols.map(c=>`<span class="pill sugg">${c}</span>`).join("")}</div><p class="small muted" style="margin-top:8px">You see what your sheet needs before you import it. Nothing is connected yet.</p></div></div>
+ <div class="pane flush tlp">${tlbar("Starter structure · choose it to edit",1)}<div class="pbody">${timeline(SAMPLE,{ghost:1})}</div></div></div>`}
+ const d=durs(SAMPLE),st=starts(SAMPLE),T=total(SAMPLE),sc=SCENES[S.scene];
+ const tree=SCENES.map((s,i)=>{const open=S.scene===i;
+  const lyr=open?`<div class="tr-l" role="group" aria-label="${s.name} layers">${s.layers.map(l=>{const L=LAYERS[l];return `<button class="item lyr" data-act="layer" data-l="${l}" aria-selected="${S.layer===l}"><span class="ico">${L.i}</span><span class="grow">${L.n}</span>${L.f?'<span class="pill">{ }</span>':'<span class="pill fixed">Fixed</span>'}</button>`}).join("")}</div>`:"";
+  return `<button class="tr-s" data-act="scene" data-i="${i}" aria-expanded="${open}"><span class="car" aria-hidden="true">${open?"▾":"▸"}</span><span class="grow">${i+1}. ${s.name}</span><span class="small muted">${i===1&&S.cdMode==="column"?"per row":d[i]+"s"}</span></button>${lyr}`}).join("");
+ const L=LAYERS[S.layer];
+ let insp=`<p class="ph">Scene ${S.scene+1} · ${sc.name}</p><dl class="kv"><dt>On screen</dt><dd>${fmt(st[S.scene])} – ${fmt(st[S.scene]+d[S.scene])}</dd><dt>Duration</dt><dd>${S.scene===1?`${S.cdMode==="column"?'per row from <span class="pill">countdown_seconds</span>':"fixed 5 s"}${S.layer!=="cd"?' <button class="btn sm ghost" data-act="layer" data-l="cd">Change</button>':""}`:`<span class="step"><button data-act="dur" data-k="${sc.k}" data-d="-1" aria-label="Shorter ${sc.name}">−</button><span>${d[S.scene]}s</span><button data-act="dur" data-k="${sc.k}" data-d="1" aria-label="Longer ${sc.name}">+</button></span>`}</dd></dl><div class="sep"></div><p class="ph">Selected layer</p><h3 style="font-size:15px;margin-bottom:8px">${L.n}</h3>`;
+ if(L.f){const fs=L.f.map(f=>FIELDS.find(x=>x.id===f));
+  insp+=`<div class="callout info"><b>Changes per row</b><div class="row">${fs.map(f=>S.links[f.id]?`<span class="pill">${f.col}</span>`:`<span class="pill sugg">not connected</span>`).join("")}</div><button class="btn sm" data-act="goConnect" data-f="${fs[0].id}">Connect data →</button></div>`}
+ else insp+=`<div class="callout">Same in every video. Not connected to the spreadsheet.</div>`;
+ if(S.layer==="cd")insp+=`<div class="sep"></div><p class="ph">Duration source</p><div class="seg" role="group" aria-label="Countdown duration source"><button data-act="cdMode" data-m="column" aria-pressed="${S.cdMode==="column"}">From a column</button><button data-act="cdMode" data-m="fixed" aria-pressed="${S.cdMode==="fixed"}">Fixed 5 s</button></div><p class="small muted" style="margin-top:6px">${S.cdMode==="column"?"Each video’s length depends on its row.":"All videos last the same time; the column is ignored."}</p>`;
+ if(["q","ex","opts"].includes(S.layer))insp+=`<div class="sep"></div><p class="ph">Text fit</p><dl class="kv"><dt>Size</dt><dd>82 px, shrinks to a 62 px minimum</dd><dt>Wrap</dt><dd>On, centred, ${S.layer==="q"?"up to 5":"3"} lines</dd><dt>If it still overflows</dt><dd>Flag the row; never clip</dd></dl>`;
+ if(S.layer==="hl")insp+=`<div class="sep"></div><p class="small">Rule: highlight the option whose letter equals the row’s value. Other options fade. One template covers A, B, C and D.</p>`;
+ return `<div class="ed"><div class="pane flush lyrp"><div class="pbar"><b>Layers</b><span class="sp"></span><span class="badge">${S.cdMode==="column"?"~":""}${T}s</span></div><div class="pbody tree">${tree}</div></div>
+ <div class="pane stage viewp"><div class="vtop small muted"><span>9:16 · sample text from <span class="mono">R001</span></span><span>Click a layer to select it</span></div><div class="frame-wrap" id="stageFrame">${frame(SAMPLE,S.t,{mode:"template",sel:S.layer,clk:1})}</div>${vbar(SAMPLE)}</div>
+ <div class="pane flush inspp"><div class="pbar"><b>Inspector</b></div><div class="pbody">${insp}</div></div>
+ <div class="pane flush tlp">${tlbar(`4 scenes · ${S.cdMode==="column"?"~":""}${T} s`)}<div class="pbody">${timeline(SAMPLE,{edit:1,thumbs:1})}</div></div></div>`};
+
+V.data=()=>{
+ if(!S.imported)return `<div class="drop"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><rect x="6" y="4" width="28" height="32" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 13h28M6 22h28M17 4v32" stroke="currentColor" stroke-width="1.5"/></svg><h3>Add the rows for your videos</h3><p class="muted small">CSV or Excel (you pick the worksheet). One row becomes one video. The import is saved as a snapshot, so later edits to the file don’t change a running batch.</p><button class="btn pri" data-act="import">Load bundled sample: riddles-100.xlsx</button><p class="small muted">The demo adapts our fixtures and adds validation cases; it does not read the actual workbook.</p></div>`;
+ if(S.sheet!=="Sheet1")return dhead()+`<div class="drop"><h3>No table found on “${esc(S.sheet)}”</h3><p class="small muted">This worksheet has only notes in A1:A4. Pick the sheet that holds your rows.</p><button class="btn" data-act="sheet" data-s="Sheet1">Use Sheet1 (100 rows)</button></div>`;
+ const br=blockRows(),wr=warnRows();
+ let rows=ROWS;if(S.dFilter==="att")rows=ROWS.filter(r=>rowStatus(r)==="err"||rowStatus(r)==="warn");
+ const th=`<tr><th class="pk">id<span class="ty">Row ID</span></th><th>status</th>${COLS.slice(1).map(c=>`<th><span class="mono">${c[0]}</span><span class="ty">${c[1]}</span></th>`).join("")}</tr>`;
+ const tb=rows.map(r=>{const is=issues(r),st=rowStatus(r);const bad=new Set(is.filter(i=>i.sev==="err").map(i=>i.col)),wn=new Set(is.filter(i=>i.sev==="warn").map(i=>i.col));
+  const stc=st==="off"?'<span class="badge">Excluded</span>':st==="err"?`<button class="btn sm dangerous" data-act="openRow" data-n="${r.n}">${is.filter(i=>i.sev==="err").length} to fix</button>`:st==="warn"?'<span class="badge warn">Warning</span>':'<span class="badge ok">Ready</span>';
+  return `<tr class="${st==="off"?"exc":""}"><td class="pk">${r.id}</td><td class="st">${stc}</td>${COLS.slice(1).map(c=>{const k=c[0],v=r[k];return `<td dir="auto" class="${bad.has(k)?"bad":wn.has(k)?"wn":""}${r.edited.has(k)?" edited":""}" title="${esc(v)}">${v===""?'<span class="tint-err">(empty)</span>':esc(v)}</td>`}).join("")}</tr>`}).join("");
+ return dhead()+`<div class="dsum"><span><b>100</b> rows</span><span><b>10</b> columns</span><span>Header: row 1</span><span class="${br.length?"tint-err":"tint-ok"}"><b>${br.length}</b> row${br.length===1?"":"s"} to fix</span><span class="tint-warn"><b>${wr.length}</b> warning</span><span><b>${S.excluded.size}</b> excluded</span><span class="muted">→ ${included().length-br.length} videos possible now</span></div>
+ <div class="tblwrap"><table class="dg${S.tall?" tall":""}"><thead>${th}</thead><tbody>${tb}</tbody></table></div>`};
+function dhead(){return `<div class="dhead"><span class="mono" style="font-weight:600">riddles-100.xlsx</span><label class="small muted" for="sheetSel">Worksheet</label><select id="sheetSel" class="inp" style="width:auto;min-height:30px;padding:3px 6px"><option ${S.sheet==="Sheet1"?"selected":""}>Sheet1</option><option ${S.sheet==="About"?"selected":""}>About</option></select><span style="flex:1"></span><div class="seg" role="group" aria-label="Rows shown"><button data-act="dFilter" data-v="all" aria-pressed="${S.dFilter==="all"}">All 100</button><button data-act="dFilter" data-v="att" aria-pressed="${S.dFilter==="att"}">Needs attention</button></div><div class="seg" role="group" aria-label="Row height"><button data-act="tall" data-v="0" aria-pressed="${!S.tall}">Compact</button><button data-act="tall" data-v="1" aria-pressed="${S.tall}">Tall</button></div></div>`}
+
+V.connect=()=>{
+ const used=Object.values(S.links);
+ const cols=S.imported?COLS.map(([k,t])=>{const filled=ROWS.filter(r=>r[k]!=="").length;const role=k==="id"?"Row key":k==="output_name"?"File names (Export)":"";
+  const by=FIELDS.filter(f=>S.links[f.id]===k).map(f=>f.label);
+  return role?`<div class="col dim"><span class="pill fixed">${k}</span><span class="sv">${role}</span></div>`:`<button class="col" draggable="true" data-act="col" data-c="${k}"><span class="row" style="gap:6px"><span class="pill">${k}</span><span class="small muted">${t}</span></span><span class="sv" dir="auto">${esc(ROWS[0][k])}</span><span class="small ${filled<100?"tint-warn":"muted"}">${filled}/100 filled${by.length?" · → "+by.join(", "):""}</span></button>`}).join(""):`<div class="callout">No spreadsheet yet. <button class="btn sm" data-act="go" data-v="data">Import data</button></div>`;
+ const pend=pending();
+ const flds=reqFields().map(f=>{const c=S.links[f.id];
+  const act=c?`<span class="pill">${c}</span><button class="x" data-act="unlink" data-f="${f.id}" aria-label="Disconnect ${f.label}">×</button>`:(f.sugg&&S.imported?`<span class="pill sugg">${f.col}?</span><button class="btn sm" data-act="accept" data-f="${f.id}">Accept</button>`:`<span class="small tint-warn">Pick a column</span>`);
+  return `<div class="fld${S.selField===f.id?" sel":""}" data-act="field" data-f="${f.id}" data-drop="${f.id}" role="button" tabindex="0" aria-pressed="${S.selField===f.id}"><span class="nm">${f.label}</span><span class="dot ${c?"":"off"}" aria-label="${c?"connected":"not connected"}"></span><span class="sc">${f.scenes}</span><span></span><div class="act">${act}</div></div>`}).join("");
+ const f=FIELDS.find(x=>x.id===S.selField)||FIELDS[0];const tShow=f.id==="hl"||f.id==="ex"?S.dur.q+cdSec(ROWS[0])+1.5:f.id==="cd"?S.dur.q+1:1.2;
+ const lay=f.id==="q"?"q":f.id==="cd"?"cd":f.id==="ex"?"ex":f.id==="hl"?"opts":f.id;
+ return `<div class="grid3"><div class="pane left"><p class="ph">Spreadsheet columns</p><p class="small muted" style="margin-bottom:8px">Select a template field, then click a column, or drag a column onto the field.</p><div class="stack">${cols}</div></div>
+ <div class="pane stage"><div class="frame-wrap">${frame(ROWS[0],tShow,{mode:"connect",sel:lay,clk:1})}</div><p class="stage-cap">Showing row R001. Unconnected fields show their {name}. Click text on the frame to select its field.</p></div>
+ <div class="pane right"><p class="ph">Template fields <span class="sp"></span><span class="badge ${linked()===reqFields().length?"ok":"warn"}">${linked()}/${reqFields().length}</span></p>
+ ${pend.length&&S.imported?`<button class="btn sm" data-act="acceptAll" style="width:100%;margin-bottom:8px">Accept ${pend.length} name matches</button>`:""}
+ <div id="cmsg" role="status" class="small" style="min-height:0">${S.cmsg}</div>
+ <div class="stack" style="display:grid;gap:6px">${flds}</div>
+ ${S.cdMode==="fixed"?'<p class="small muted" style="margin-top:8px">Countdown is fixed at 5 s in the template, so it needs no column.</p>':""}</div></div>`};
+
+V.preview=()=>{
+ if(!S.imported)return `<div class="drop"><h3>Nothing to preview yet</h3><p class="small muted">Import rows and connect fields first.</p><button class="btn" data-act="go" data-v="data">Go to Data</button></div>`;
+ const q=S.search.trim().toLowerCase();
+ let list=ROWS.filter(r=>S.rFilter==="all"?true:S.rFilter==="att"?(rowStatus(r)==="err"):S.excluded.has(r.id));
+ if(q)list=list.filter(r=>r.id.toLowerCase().includes(q)||r.question.toLowerCase().includes(q));
+ const items=list.map(r=>{const st=rowStatus(r);return `<button class="item ritem${st==="off"?" exc":""}" data-act="row" data-n="${r.n}" aria-selected="${S.row===r.n}"><span class="dot ${st==="ok"?"":st}"></span><span class="id">${r.id}</span><span class="grow" dir="auto">${r.question?esc(r.question):"(empty)"}</span></button>`}).join("")||'<p class="small muted">No rows match.</p>';
+ const r=ROWS[S.row-1],is=issues(r),br=blockRows();
+ const nextIdx=br.length?br.find(x=>x.n>S.row)||br[0]:null;
+ let fx="";
+ is.forEach(i=>{
+  fx+=`<div class="callout ${i.sev==="err"?"err":"warn"}"><div><span class="pill">${i.col}</span> ${esc(i.msg)}</div>`;
+  if(i.col==="question"&&i.sev==="err")fx+=`<label class="small muted" for="fixQ">Edit this cell (the source file is not changed)</label><textarea class="inp" id="fixQ" dir="auto">${esc(r.question)}</textarea><div class="row"><span class="small" id="fixQn">${[...r.question].length}/130 characters</span><span style="flex:1"></span><button class="btn sm pri" data-act="fixQ" id="fixQb" disabled>Apply edit</button></div>`;
+  if(i.col==="correct_option")fx+=`<div class="row"><label class="small" for="fixC">Correct option</label><select id="fixC" class="inp" style="width:auto"><option value="">Choose…</option>${["A","B","C","D"].map(x=>`<option>${x}</option>`).join("")}</select><button class="btn sm" data-act="fixC">Apply</button></div>`;
+  if(i.col==="countdown_seconds")fx+=`<div class="row"><label class="small" for="fixN">Seconds</label><input id="fixN" class="inp" type="number" min="1" max="30" style="width:80px"><button class="btn sm" data-act="fixN">Apply</button></div>`;
+  fx+=`</div>`});
+ const exc=S.excluded.has(r.id);
+ const vals=reqFields().filter(f=>S.links[f.id]).map(f=>`<dt>${f.label}</dt><dd dir="auto">${esc(r[S.links[f.id]])||'<span class="tint-err">(empty)</span>'}</dd>`).join("");
+ return `<div class="grid3"><div class="pane left"><p class="ph">Rows</p><input class="inp" id="rsearch" type="search" placeholder="Search id or question" value="${esc(S.search)}" aria-label="Search rows" style="margin-bottom:6px"><div class="seg" role="group" aria-label="Filter rows" style="margin-bottom:6px"><button data-act="rf" data-v="all" aria-pressed="${S.rFilter==="all"}">All 100</button><button data-act="rf" data-v="att" aria-pressed="${S.rFilter==="att"}">To fix ${br.length}</button><button data-act="rf" data-v="exc" aria-pressed="${S.rFilter==="exc"}">Excluded ${S.excluded.size}</button></div><div class="rows" role="listbox" aria-label="Rows">${items}</div></div>
+ <div class="pane stage"><div class="qbar">${br.length?`<span>${br.length} row${br.length>1?"s":""} to fix before generating</span><button class="btn sm" data-act="row" data-n="${nextIdx.n}">Next issue: ${nextIdx.id} →</button>`:`<span class="tint-ok" style="color:#5fe0a5">No rows block generation</span>`}</div>
+ <div class="frame-wrap" id="stageFrame">${frame(r,S.t,{mode:"preview"})}</div>${vbar(r)}${timeline(r,{compact:1})}<p class="stage-cap">Switching rows keeps the playhead, so you can compare the same moment across rows.</p></div>
+ <div class="pane right"><p class="ph">${r.id} · row ${r.n} <span class="sp"></span>${exc?'<span class="badge">Excluded</span>':blocked(r)?'<span class="badge err">Blocks</span>':is.length?'<span class="badge warn">Warning</span>':'<span class="badge ok">Ready</span>'}</p>
+ ${linked()<reqFields().length?`<div class="callout warn" style="margin-bottom:8px">${reqFields().length-linked()} field(s) not connected; they show {placeholders}. <button class="btn sm" data-act="go" data-v="connect">Connect</button></div>`:""}
+ <div style="display:grid;gap:8px">${fx}</div>
+ <div class="sep"></div><dl class="kv">${vals||'<dt>Values</dt><dd>No connected fields yet</dd>'}<dt>Length</dt><dd>${total(r)} s${S.cdMode==="column"&&!cdOk(r)?" (countdown shown as 5 s until fixed)":""}</dd><dt>File</dt><dd class="mono">${names()[r.n].file}</dd></dl>
+ <div class="sep"></div><button class="btn sm ${exc?"":"dangerous"}" data-act="exclude">${exc?"Include this row again":"Exclude this row from the batch"}</button></div></div>`};
+
+V.export=()=>{const b=S.batch;
+ const n=included().length,br=blockRows(),lk=linked(),rq=reqFields().length,ok=S.tpl&&S.imported&&lk===rq&&!br.length;
+ const checks=[[S.tpl,"Template chosen","Riddle Rush, 4 scenes"],[S.imported,"Data imported",S.imported?"riddles-100.xlsx · Sheet1 · snapshot":"No data yet"],[lk===rq,"Fields connected",`${lk}/${rq}`],[!br.length,"No blocking rows",br.length?br.map(r=>r.id).join(", ")+" need fixes or exclusion":"all included rows pass"],[true,"Excluded rows",S.excluded.size?[...S.excluded].join(", ")+" (listed in manifest)":"none"],[true,"Warnings",warnRows().length+" (file-name collision, auto-suffixed)"]];
+ const setup=`<div class="card"><h3>Output</h3><dl class="kv"><dt>Videos</dt><dd><b>${n}</b>: one MP4 per included row, all 4 scenes</dd><dt>Format</dt><dd>MP4 · H.264 + AAC · 1080 × 1920 · 30 fps</dd><dt>File names</dt><dd><span class="pill">output_name</span> + “.mp4”; duplicates get “-{id}”</dd><dt>Length</dt><dd>${Math.min(...included().map(total))}–${Math.max(...included().map(total))} s, depending on countdown</dd><dt>Combined video</dt><dd class="muted">Not offered in the first release</dd></dl>
+ <div class="row"><button class="btn" data-act="test" ${S.test==="running"||!ok?"disabled":""}>${S.test==="running"?"Rendering test…":"Export one test video (R001)"}</button>${S.test==="done"?'<span class="small tint-ok">✓ Test video ready to review</span>':""}</div></div>`;
+ const pre=`<div class="card"><h3>Preflight</h3><ul class="check">${checks.map(([g,t,d])=>`<li><i class="${g?"tint-ok":"tint-err"}">${g?"✓":"✕"}</i><span><b>${t}</b><br><span class="small muted">${esc(d)}</span></span></li>`).join("")}</ul>
+ <button class="btn pri" data-act="start" ${ok&&!(b&&b.running)?"":"disabled"}>${b?"Start a new batch of":"Create"} ${n} videos</button>${ok?"":`<p class="small muted">Fix the ✕ items to enable this.</p>`}</div>`;
+ if(!b)return `<div class="ex"><div class="ex-grid">${setup}${pre}</div></div>`;
+ const c=cnt(b);const N=b.jobs.length;
+ const fails=b.jobs.filter(j=>j.st==="failed"||j.st==="cancelled");
+ const changed=S.rev!==b.rev?`<div class="callout info">The project changed after this batch started (now rev ${S.rev}). Batch ${b.id} still uses its frozen rev ${b.rev}; start a new batch to use the changes.</div>`:"";
+ let dl="";
+ if(!b.running&&c.done===N){const list=(S.showAll?b.jobs:b.jobs.slice(0,8)).map(j=>`<div class="file"><span class="dot"></span><span class="fn">${j.file}</span><button class="btn sm ghost" data-act="file" data-id="${j.id}">Download</button></div>${S.fileNote===j.id?`<div class="small muted" style="padding:0 6px 6px 22px">In the product this would save <code>${j.file}</code> (${j.duration} s). This mockup has no video file.</div>`:""}`).join("");
+  dl=`<div class="card"><h3>Downloads</h3><div class="row"><button class="btn pri" data-act="zip">${S.zip?"Hide":"Show"} ZIP contents</button><button class="btn" data-act="manifest">Download manifest.csv</button></div>
+  ${S.zip?`<div class="callout"><b class="mono">daily-riddles-${b.id}.zip</b><span class="small">manifest.csv + ${N} MP4 files. Large batches split into parts, each with its own manifest.</span><pre class="man">manifest.csv\n${b.jobs.slice(0,4).map(j=>j.file).join("\n")}\n… ${N-4} more .mp4</pre></div>`:""}
+  <p class="ph" style="margin:4px 0 0">Separate files</p><div class="files">${list}</div>${N>8?`<button class="btn sm ghost" data-act="showAll">${S.showAll?"Show fewer":"Show all "+N}</button>`:""}
+  <p class="ph" style="margin:4px 0 0">manifest.csv preview</p><pre class="man">${esc(manifest().split("\n").slice(0,6).join("\n"))}\n…</pre></div>`}
+ return `<div class="ex">${changed}<div class="card"><div class="row"><h3>Batch ${b.id} · rev ${b.rev} · ${N} videos</h3><span style="flex:1"></span>${b.running?`<button class="btn sm" data-act="cancel">Cancel remaining</button>`:""}</div>
+ <div id="bprog">${prog(b)}</div>
+ ${!b.running&&fails.length?`<div class="callout err"><b>${fails.length} video${fails.length>1?"s":""} not made.</b> The ${c.done} finished files are kept.<ul class="check" style="margin-top:4px">${fails.slice(0,6).map(j=>`<li><i class="tint-err">✕</i><span><span class="mono">${j.id}</span> ${esc(j.reason)}</span></li>`).join("")}</ul><div><button class="btn pri" data-act="retry">Retry ${fails.length} ${fails.some(j=>j.st==="cancelled")?"unfinished":"failed"} only</button></div></div>`:""}
+ ${!b.running&&c.done===N?`<div class="callout ok"><b>All ${N} videos are ready.</b> ${b.sourceRows.filter(r=>r.excluded).length} excluded row(s) listed in the manifest so every source row is accounted for.</div>`:""}
+ </div>${dl}${!b.running?`<details class="acc"><summary style="font-size:14px">Batch settings and preflight</summary><div class="dbody"><div class="ex-grid">${setup}${pre}</div></div></details>`:""}</div>`};
+function cnt(b){const c={queued:0,rendering:0,done:0,failed:0,cancelled:0};b.jobs.forEach(j=>c[j.st]++);return c}
+function prog(b){const c=cnt(b),N=b.jobs.length,w=k=>(c[k]/N*100).toFixed(2)+"%";
+ return `<div class="bar" role="img" aria-label="${c.done} of ${N} done"><span style="width:${w("done")};background:var(--ok)"></span><span style="width:${w("rendering")};background:var(--status-info)"></span><span style="width:${w("failed")};background:var(--err)"></span></div>
+ <div class="legend" style="margin:8px 0"><span><i style="background:var(--ok)"></i>${c.done} done</span><span><i style="background:var(--status-info)"></i>${c.rendering} rendering</span><span><i style="background:var(--sec);border:1px solid var(--bd)"></i>${c.queued} queued</span><span><i style="background:var(--err)"></i>${c.failed} failed</span>${c.cancelled?`<span><i style="background:var(--mfg)"></i>${c.cancelled} cancelled</span>`:""}</div>
+ <div class="tiles" aria-hidden="true">${b.jobs.map(j=>`<i class="tile ${j.st}" title="${j.id} ${j.st}"></i>`).join("")}</div>`}
+
+/* ---------- batch simulation ---------- */
+function startBatch(jobs){const b=S.batch;b.running=true;jobs.forEach(j=>{j.st="queued";j.left=0});clearInterval(b.timer);
+ b.timer=setInterval(()=>{let act=b.jobs.filter(j=>j.st==="rendering");
+  act.forEach(j=>{if(--j.left<=0){if(FIELD_FAIL(j)){j.st="failed";j.reason="Render worker stopped responding (simulated). Other videos were not affected."}else j.st="done"}});
+  act=b.jobs.filter(j=>j.st==="rendering");
+  for(const j of b.jobs){if(act.length>=4)break;if(j.st==="queued"){j.st="rendering";j.left=2+Math.floor(Math.random()*3);j.attempt++;act.push(j)}}
+  if(!b.jobs.some(j=>j.st==="queued"||j.st==="rendering")){clearInterval(b.timer);b.running=false;render();return}
+  const el=$("#bprog");if(el&&S.view==="export")el.innerHTML=prog(b);tabs()},110)}
+const FIELD_FAIL=j=>FAIL.has(j.id)&&j.attempt===1;
+function newBatch(){if(S.batch)clearInterval(S.batch.timer);const id="b-"+pad((S.batch?Number(S.batch.id.slice(2)):0)+1);
+ const nm=names(),sourceRows=ROWS.map(r=>({id:r.id,n:r.n,file:nm[r.n].file,duration:total(r),duplicate:!!nm[r.n].dupOf,excluded:S.excluded.has(r.id),note:issues(r).map(i=>i.col).join(" + ")||"no issue"}));
+ S.batch={id,rev:S.rev,running:false,sourceRows,jobs:sourceRows.filter(r=>!r.excluded).map(r=>({...r,st:"queued",attempt:0,left:0,reason:""}))};S.zip=false;S.fileNote="";startBatch(S.batch.jobs)}
+function manifest(){const b=S.batch,by=new Map(b?b.jobs.map(j=>[j.id,j]):[]);
+ const lines=["row_id,row_number,status,file,duration_s,batch,revision,attempts,note"];
+ (b?b.sourceRows:[]).forEach(r=>{const j=by.get(r.id);if(j)lines.push([r.id,r.n,j.st,j.st==="done"?j.file:"",j.duration,b.id,"r"+b.rev,j.attempt,j.attempt>1?"retried after simulated worker failure":(j.duplicate?"name suffixed: duplicate output_name":"")].join(","));
+  else lines.push([r.id,r.n,"excluded","","",b.id,"r"+b.rev,0,`"excluded by user: ${r.note}"`].join(","))});
+ return lines.join("\n")}
+
+/* ---------- tour ---------- */
+const REF={OF:["OpenFilm: studio UI (source @ b7673b5 + README demo)","https://github.com/openfilm/openfilm/tree/b7673b585e3e9c3b434fe663e68619cc1984ae8b"],C1:["Canva: Create designs in bulk","https://www.canva.com/help/bulk-create/"],C3:["Canva: Download designs (bulk limits)","https://www.canva.com/help/download-or-purchase/"],K2:["Creatomate: Bulk generation","https://creatomate.com/bulk-generation"],R1:["Figma: Right sidebar (properties panel)","https://help.figma.com/hc/en-us/articles/360039832014-Design-prototype-and-explore-layer-properties-in-the-right-sidebar"],R2:["Figma: Apply variables to designs","https://help.figma.com/hc/en-us/articles/15343107263511-Apply-variables-to-designs"],R3:["Airtable: Grid view","https://support.airtable.com/docs/airtable-grid-view"],R4:["GitHub Docs: Re-running workflows and jobs","https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs"]};
+const TOUR=[
+ {t:"Choose a starter",v:"template",enter(){S.tpl=false},
+  try:["Explore the Starters pane, the video preview, the expected columns in the Inspector, and the starter’s scene structure in the timeline.","Pick “Riddle Rush” (or press Use this starter). The other two are labelled as not in this prototype."],
+  why:["The starter picker is a panel inside the same docked editor, not a separate home page. The layout you will edit in is visible from the first screen.","Each card lists the columns it expects. You learn what your sheet needs before you import it.","The thumbnail is the real template at its countdown moment, not a stock image."],refs:["OF","C1","K2"],assist:["Choose Riddle Rush",()=>{S.tpl=true}]},
+ {t:"Edit the multi-scene template",v:"template",enter(){S.tpl=true},
+  try:["Click a scene clip in the timeline (or a scene in Layers), then a layer on the canvas or in the list.","Select the Reveal clip and set it to 5 s with − / + in the inspector. The clip, ruler and total update.","Select “Countdown timer” and switch its duration between a column and fixed. The countdown clip shows hatching while its length is per row."],
+  why:["A docked studio gives Layers, canvas, Inspector and timeline their own panes. At full width, this follows OpenFilm’s arrangement (its <code>ProjectView.tsx</code> and public demo); narrower layouts rearrange the panes to keep each usable.","The inspector follows selection, as Figma documents for its right sidebar. The Layer lane shows when the selected layer is on screen.","Layers that change per row carry a <code>{ }</code> data pill. Fixed layers say “Fixed”. This is the key fact about any template. Total length is the sum of scenes, not a guess."],refs:["OF","R1","C1"],assist:["Select the countdown timer",()=>{S.tpl=true;S.scene=1;S.layer="cd";S.t=S.dur.q+1}]},
+ {t:"Import and review the data",v:"data",
+  try:["Load the bundled sample.","Switch the worksheet to “About” and see the recovery message.","Filter “Needs attention” and toggle Compact/Tall rows."],
+  why:["A grid with the row ID pinned on the left, and each column’s type under its name, like Airtable’s grid view.","The summary line answers the real question before any mapping: how many videos are possible right now.","Blocking cells are outlined in red at the exact cell. Warnings (a duplicate file name) don’t block. The import is a snapshot."],refs:["R3","C1"],assist:["Load the sample workbook",()=>{S.imported=true;S.sheet="Sheet1"}]},
+ {t:"Connect columns to fields",v:"connect",
+  try:["Accept the 6 name matches.","Select “Countdown duration”, then click <span class=\"pill\">countdown_seconds</span> (or drag it).","Try connecting <span class=\"pill\">question</span> to the countdown and see the type guard."],
+  why:["The list of fields comes first, because the template decides what is required. Canva’s help documents both drag-and-drop and choosing a field for each element.","Name-based suggestions are shown dashed and are not applied until you accept them, so nothing is matched silently.","Binding sits in the selection’s properties, the way Figma applies a variable to a text layer’s content."],refs:["C1","R2"],assist:["Connect every field",()=>{S.imported=true;reqFields().forEach(f=>S.links[f.id]=f.col);S.cmsg=""}]},
+ {t:"Preview rows: question, countdown, reveal",v:"preview",
+  try:["Press Play, or drag the scrubber through countdown and reveal.","Switch rows while paused: the playhead stays put.","Open R006 (Hindi) and R007 (Arabic, right to left), and R004 with its 6 s countdown."],
+  why:["A row list next to a playable stage. Canva’s documented bulk preview shows a still first frame, but riddles go wrong in the countdown and the reveal.","The scene clips on the timeline double as jump points, and countdown length is shown per row.","Problems appear as overlays on the frame and as plain messages on the right. They are never clipped silently."],refs:["C1"],assist:["Play row R006",()=>{S.imported=true;S.row=6;S.t=0;S.view="preview";play(true)}]},
+ {t:"Fix or exclude bad rows (corrective)",v:"preview",corr:1,enter(){S.rFilter="att";const b=blockRows()[0];if(b)S.row=b.n},
+  try:["Use “Next issue” to visit R037, R058 and R091.","R058: type a question. R037: shorten it to 130 characters or fewer.","R091: choose a valid answer and countdown, or exclude the row."],
+  why:["The fix sits beside the frame it affects, so you see the result right away.","Edits are saved as overrides (marked “edited” in Data). The source file is untouched.","Excluding is an explicit, counted choice. It also appears in the manifest, so no row disappears."],refs:["C1"],assist:["Apply the demo fixes",()=>{demoFix()}]},
+ {t:"Generate, then retry failed only (corrective)",v:"export",corr:1,
+  try:["Check preflight, then press “Create … videos”.","Two rows fail on purpose (simulated). Press “Retry 2 failed only”.","Optional: change something during the batch and see the frozen-revision notice."],
+  why:["One tile per video makes the 1 row = 1 video rule visible, and failures show up as single red tiles.","GitHub documents “Re-run failed jobs” next to “Re-run all jobs”, with re-runs using the original commit. Here, retries reuse the batch’s frozen revision.","Finished files stay available while other rows fail or are retried."],refs:["R4","C3"],assist:["Get ready and start the batch",()=>{ready();newBatch();S.view="export"}]},
+ {t:"Download files, ZIP and manifest",v:"export",
+  try:["Download manifest.csv (a real file, generated locally).","Show the ZIP contents and try a single-file download."],
+  why:["Making the videos and downloading them are separate steps. Canva documents a 25-design limit for bulk MP4/GIF downloads, so delivery needs its own design.","The manifest links every source row to its file and status, including excluded rows, so 100 rows in means 100 lines out.","Each file is named from <span class=\"pill\">output_name</span>, and collisions get a visible suffix."],refs:["C3","K2"],assist:["Finish the batch instantly",()=>{ready();if(!S.batch)newBatch();clearInterval(S.batch.timer);S.batch.running=false;S.batch.jobs.forEach(j=>{j.st="done";j.attempt=Math.max(1,j.attempt)});S.view="export"}]}
+];
+function ready(){S.tpl=true;S.imported=true;S.sheet="Sheet1";reqFields().forEach(f=>S.links[f.id]=f.col);demoFix()}
+function demoFix(){const r58=ROWS[57],r37=ROWS[36];if(!r58.question.trim()){r58.question=BASE[1][0];r58.edited.add("question")}if(fit(r37.question).over){r37.question=BASE[4][0];r37.edited.add("question")}if(blocked(ROWS[90]))S.excluded.add("R091");bump()}
+
+function tourBar(){const st=TOUR[S.step];$("#tourTitle").textContent=`${S.step+1}/${TOUR.length} · ${st.t}`;
+ $("#tourSteps").innerHTML=TOUR.map((s,i)=>`<button class="ts${s.corr?" corr":""}" role="listitem" data-act="tjump" data-i="${i}" ${i===S.step?'aria-current="step"':""} title="${esc(s.t)}"><b>${i+1}</b>${esc(s.t.split(" (")[0])}</button>`).join("");
+ $("#tPrev").disabled=S.step===0;$("#tNext").disabled=S.step===TOUR.length-1;
+ const cur=$("#tourSteps [aria-current]");if(cur&&cur.scrollIntoView)cur.scrollIntoView({block:"nearest",inline:"nearest"})}
+function notes(){const st=TOUR[S.step];const away=S.view!==st.v;
+ $("#notes").innerHTML=`<div class="nh"><span class="lbl">Designer notes · not product UI</span><h3>Step ${S.step+1}: ${st.t}</h3>${st.corr?'<span class="tag inf">corrective path</span>':'<span class="tag pro">happy path</span>'}</div>
+ ${away?`<div class="away">You are exploring the <b>${S.view}</b> screen on your own. <button class="btn sm" data-act="tjump" data-i="${S.step}">Return to step ${S.step+1}</button></div>`:""}
+ <div class="ncols"><div><h4>Try this</h4><ol>${st.try.map(x=>`<li>${x}</li>`).join("")}</ol><div class="row" style="margin-top:8px"><button class="btn sm" data-act="assist">Demo assist: ${st.assist[0]}</button></div></div>
+ <div><h4>Why it is arranged this way</h4><ul>${st.why.map(x=>`<li>${x}</li>`).join("")}</ul><p class="small" style="margin-top:6px">${st.refs.map(k=>`<a href="${REF[k][1]}" target="_blank" rel="noopener">${k} · ${REF[k][0]}</a>`).join(" &nbsp;·&nbsp; ")}</p></div></div>`}
+
+/* ---------- render ---------- */
+function tabs(){const b=S.batch,c=b?cnt(b):null,br=S.imported?blockRows().length:0;
+ const T=[["template","Template",S.tpl?'<span class="badge ok">✓</span>':""],["data","Data",!S.imported?"":br?`<span class="badge err">${br} to fix</span>`:'<span class="badge ok">✓</span>'],["connect","Connect",`<span class="badge ${linked()===reqFields().length?"ok":""}">${linked()}/${reqFields().length}</span>`],["preview","Preview",""],["export","Export",!b?"":b.running?`<span class="badge info">${c.done}/${b.jobs.length}</span>`:c.done===b.jobs.length?'<span class="badge ok">Ready</span>':`<span class="badge err">${c.failed+c.cancelled} failed</span>`]];
+ $("#tabs").innerHTML=T.map(([k,l,x])=>`<button class="tab" data-act="go" data-v="${k}" ${S.view===k?'aria-current="page"':""}>${l}${x}</button>`).join("");
+ $("#rev").textContent=`rev ${S.rev} · saved`}
+const SOLO=new Set(["data","export"]);
+function render(){const h=V[S.view]();$("#view").innerHTML=SOLO.has(S.view)?`<div class="pane solo">${h}</div>`:h;tabs();tourBar();notes()}
+function stageOnly(){const fr=$("#stageFrame");if(!fr)return render();const row=S.view==="template"?SAMPLE:ROWS[S.row-1],T=total(row);
+ fr.innerHTML=frame(row,S.t,S.view==="template"?{mode:"template",sel:S.layer,clk:1}:{mode:"preview"});
+ const sc=$("#tp-scrub"),tcl=$("#tp-tc"),ph=$("#tp-ph"),sn=$("#tp-sc");if(sc)sc.value=S.t;if(tcl)tcl.textContent=`${fmt(S.t)} / ${fmt(T)}`;if(ph)ph.style.left=pct(Math.min(S.t,T),T);
+ const i=sceneAt(Math.min(S.t,T-.001),row).i;if(sn)sn.textContent=SCENES[i].name;document.querySelectorAll(".lane.sc .clip").forEach((b,k)=>b.classList.toggle("now",k===i))}
+let raf=0,last=0;
+function play(force){S.playing=force===true?true:!S.playing;const row=()=>S.view==="template"?SAMPLE:ROWS[S.row-1];
+ if(S.playing&&S.t>=total(row())-.05)S.t=0;cancelAnimationFrame(raf);last=performance.now();
+ const loop=now=>{if(!S.playing)return;S.t+=(now-last)/1000;last=now;const T=total(row());if(S.t>=T){S.t=T;S.playing=false;render();return}stageOnly();raf=requestAnimationFrame(loop)};
+ if(S.playing)raf=requestAnimationFrame(loop);render()}
+function stop(){if(S.playing){S.playing=false;cancelAnimationFrame(raf)}}
+
+/* ---------- events ---------- */
+const wt=$("#wt");
+function connect(fid,col){const f=FIELDS.find(x=>x.id===fid);if(!f){S.cmsg='<span class="tint-warn">Select a template field first, then pick a column.</span>';return}
+ const ck=COLKIND[col]||"text";
+ if(f.kind!=="text"&&ck!==f.kind){S.cmsg=`<div class="callout err" style="margin-bottom:8px"><span><b>${f.label}</b> needs a ${f.kind==="number"?"number of seconds":"letter A–D"}. <span class="pill">${col}</span> holds ${ck==="number"?"numbers":"text"}. Not connected.</span></div>`;return}
+ if(f.kind==="text"&&ck!=="text"){S.cmsg=`<div class="callout warn" style="margin-bottom:8px"><span>Connected <span class="pill">${col}</span> to ${f.label}: its values will display as text.</span></div>`}else S.cmsg="";
+ S.links[fid]=col;bump()}
+wt.addEventListener("click",e=>{const el=e.target.closest("[data-act]");
+ if(!el){const lay=e.target.closest(".vf [data-l],.vf [data-f]");if(lay&&lay.classList.contains("clk")){const l=lay.dataset.f||lay.dataset.l;
+  if(S.view==="template"){S.layer=lay.dataset.f?"opts":l;if(!SCENES[S.scene].layers.includes(S.layer)){const k=SCENES.findIndex(s=>s.layers.includes(S.layer));if(k>=0)S.scene=k}render()}
+  else if(S.view==="connect"){const map={opts:"a"};const fid=map[l]||l;if(FIELDS.some(f=>f.id===fid)){S.selField=fid;S.cmsg="";render()}}}return}
+ const a=el.dataset.act,d=el.dataset;
+ switch(a){
+  case "tprev":case "tnext":case "tjump":{stop();S.step=a==="tjump"?Number(d.i):Math.max(0,Math.min(TOUR.length-1,S.step+(a==="tnext"?1:-1)));const st=TOUR[S.step];S.view=st.v;st.enter&&st.enter();render();if(a!=="tjump")$("#tourTitle").focus?.();return}
+  case "assist":stop();TOUR[S.step].assist[1]();if(S.view!=="preview"||!S.playing)render();return;
+  case "go":stop();S.view=d.v;S.cmsg="";render();return;
+  case "pickTpl":S.tpl=true;S.scene=0;S.layer="q";S.t=1.2;bump();break;
+  case "scene":{stop();S.scene=Number(d.i);S.layer=SCENES[S.scene].layers.find(l=>LAYERS[l].f)||SCENES[S.scene].layers[0];const st=durs(SAMPLE).slice(0,S.scene).reduce((x,y)=>x+y,0);S.t=st+Math.min(1,durs(SAMPLE)[S.scene]/2);break}
+  case "dur":{e.stopPropagation();const k=d.k;S.dur[k]=Math.max(1,Math.min(10,S.dur[k]+Number(d.d)));bump();break}
+  case "layer":S.layer=d.l;if(S.view==="template"&&!SCENES[S.scene].layers.includes(S.layer)){S.scene=SCENES.findIndex(x=>x.layers.includes(S.layer));S.t=starts(SAMPLE)[S.scene]+.5}break;
+  case "cdMode":S.cdMode=d.m;bump();break;
+  case "goConnect":S.view="connect";S.selField=d.f;break;
+  case "import":S.imported=true;bump();break;
+  case "sheet":S.sheet=d.s;break;
+  case "dFilter":S.dFilter=d.v;break;
+  case "tall":S.tall=d.v==="1";break;
+  case "openRow":stop();S.row=Number(d.n);S.view="preview";break;
+  case "field":S.selField=d.f;S.cmsg="";break;
+  case "col":connect(S.selField,d.c);break;
+  case "accept":e.stopPropagation();S.links[d.f]=FIELDS.find(f=>f.id===d.f).col;S.cmsg="";bump();break;
+  case "acceptAll":pending().forEach(f=>S.links[f.id]=f.col);S.cmsg="";bump();break;
+  case "unlink":e.stopPropagation();delete S.links[d.f];bump();break;
+  case "play":play();return;
+  case "seek":S.t=Number(d.t);stageOnly();return;
+  case "row":S.row=Number(d.n);{const T=total(ROWS[S.row-1]);if(S.t>T)S.t=T}if(S.playing){render();return}break;
+  case "rf":S.rFilter=d.v;break;
+  case "fixQ":{const v=$("#fixQ").value.trim();if(!v||fit(v).over)return;const r=ROWS[S.row-1];r.question=v;r.edited.add("question");bump();break}
+  case "fixC":{const v=$("#fixC").value;if(!v)return;const r=ROWS[S.row-1];r.correct_option=v;r.edited.add("correct_option");bump();break}
+  case "fixN":{const v=$("#fixN").value;const r=ROWS[S.row-1];if(!(Number.isInteger(Number(v))&&v>=1&&v<=30))return;r.countdown_seconds=String(Number(v));r.edited.add("countdown_seconds");bump();break}
+  case "exclude":{const id=ROWS[S.row-1].id;S.excluded.has(id)?S.excluded.delete(id):S.excluded.add(id);bump();break}
+  case "test":S.test="running";setTimeout(()=>{S.test="done";if(S.view==="export")render()},1300);break;
+  case "start":newBatch();break;
+  case "cancel":{const b=S.batch;clearInterval(b.timer);b.jobs.forEach(j=>{if(j.st==="queued"||j.st==="rendering"){j.st="cancelled";j.reason="Cancelled before it finished."}});b.running=false;break}
+  case "retry":{const b=S.batch;startBatch(b.jobs.filter(j=>j.st==="failed"||j.st==="cancelled"));break}
+  case "zip":S.zip=!S.zip;break;
+  case "showAll":S.showAll=!S.showAll;break;
+  case "file":S.fileNote=S.fileNote===d.id?"":d.id;break;
+  case "manifest":{const blob=new Blob([manifest()+"\n"],{type:"text/csv"});const u=URL.createObjectURL(blob);const A=document.createElement("a");A.href=u;A.download=`manifest-${S.batch.id}.csv`;document.body.appendChild(A);A.click();A.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);return}
+  default:return}
+ render()});
+wt.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches('[role="button"][data-act]')){e.preventDefault();e.target.click()}});
+wt.addEventListener("input",e=>{const t=e.target;
+ if(t.id==="tp-scrub"){stop();S.t=Number(t.value);stageOnly();const pb=$('[data-act="play"]');if(pb){pb.textContent="▶ Play";pb.setAttribute("aria-label","Play")}}
+ else if(t.id==="rsearch"){S.search=t.value;const pos=t.selectionStart;render();const n=$("#rsearch");n.focus();n.setSelectionRange(pos,pos)}
+ else if(t.id==="fixQ"){const v=t.value.trim(),n=[...v].length,okv=v&&n<=130;$("#fixQn").textContent=`${n}/130 characters`;$("#fixQn").className="small "+(okv?"tint-ok":"tint-err");$("#fixQb").disabled=!okv}});
+wt.addEventListener("change",e=>{if(e.target.id==="sheetSel"){S.sheet=e.target.value;render()}});
+wt.addEventListener("dragstart",e=>{const c=e.target.closest&&e.target.closest("[data-c]");if(c){e.dataTransfer.setData("text/plain",c.dataset.c);e.dataTransfer.effectAllowed="link"}});
+wt.addEventListener("dragover",e=>{const f=e.target.closest&&e.target.closest("[data-drop]");if(f){e.preventDefault();f.classList.add("drag")}});
+wt.addEventListener("dragleave",e=>{const f=e.target.closest&&e.target.closest("[data-drop]");if(f)f.classList.remove("drag")});
+wt.addEventListener("drop",e=>{const f=e.target.closest&&e.target.closest("[data-drop]");if(!f)return;e.preventDefault();const col=e.dataTransfer.getData("text/plain");if(col){S.selField=f.dataset.drop;connect(f.dataset.drop,col);render()}});
+
+/* ---------- references ---------- */
+const REFS=[
+ {k:"OF",tag:"SOURCE",says:"At commit <code>b7673b5</code>, <code>ProjectView.tsx</code> builds the studio from docked panes with 7 px corners, and <code>globals.css</code> says “panes float on a board one step darker; the seams are that board showing through” (light board #f2f2f2 / pane #fcfcfc, dark #111111 / #181818). Selected layers use a muted blue; in the light theme the playhead and scene clips are teal. The public README demo shows media and layers on the left, a large viewer with transport under it, an inspector on the right, a multi-track timeline across the bottom, and chat on the far right.",inf:"For template editing, structure, canvas, properties and time each need a fixed home. Seams instead of heavy borders keep that calm, and in the light demo the canvas surround is light too. Chat is not needed for column binding.",ui:"Template screen: a board with theme-coloured panes (Layers · canvas · Inspector) over a timeline with ruler, playhead, scene clips, a layer lane and an audio lane. Data, Connect, Preview and Export use the same panes. Colours come from host tokens, not OpenFilm’s teal. No OpenFilm code, branding or chat was copied, and we did not run their editor.",mini:`<div style="display:grid;grid-template-columns:1fr 1.6fr 1fr;grid-template-rows:1fr 22px;gap:3px;height:80px;background:color-mix(in srgb,var(--bg) 92%,#000);padding:3px;border-radius:4px"><i style="background:var(--surface);border-radius:2px"></i><i style="background:var(--surface);border-radius:2px;display:grid;place-items:center"><i style="width:14px;height:24px;background:#141834;border-radius:2px"></i></i><i style="background:var(--surface);border-radius:2px"></i><i style="grid-column:1/-1;background:var(--surface);border-radius:2px;display:flex;gap:2px;padding:4px"><i style="flex:4;background:color-mix(in srgb,var(--pri) 25%,transparent);border-radius:2px"></i><i style="flex:5;background:color-mix(in srgb,var(--pri) 25%,transparent);border-radius:2px"></i><i style="flex:4;background:color-mix(in srgb,var(--pri) 25%,transparent);border-radius:2px"></i><i style="flex:2;background:color-mix(in srgb,var(--pri) 25%,transparent);border-radius:2px"></i></i></div>`},
+ {k:"C1",says:"Columns become data fields and rows become versions. You connect text and image elements by drag-and-drop or by choosing a field under “Connect data”. Multi-page designs are connected page by page. You preview before generating. (Read via a reader snapshot; the help page returns 403 to direct requests.)",inf:"The element ↔ column mental model works well. The preview in the help page is a still frame (per our earlier reading), which is weak for timed video.",ui:"Connect screen: fields on the right, columns on the left, both drag and click. Preview screen: a <b>playable</b> per-row stage with the scene timeline.",mini:`<span class="pl">question</span><span style="font-size:14px;line-height:1">↓</span><div class="ln" style="background:var(--pri);opacity:.4;width:80%"></div><div class="ln" style="width:60%"></div><div class="ln" style="width:70%"></div>`},
+ {k:"C3",says:"Bulk download of MP4/GIF is limited to 25 designs per download (Canva help, “Downloading multiple designs in bulk limitations”).",inf:"Making videos and delivering them should be separate stages, with an output inventory.",ui:"Export screen: generate first, then downloads (separate files, ZIP split into parts, and a manifest that accounts for every row).",mini:`<div style="display:flex;gap:3px;flex-wrap:wrap">${"<i style='width:12px;height:16px;background:var(--ok);opacity:.6;border-radius:2px'></i>".repeat(10)}</div><div class="ln" style="width:50%"></div><span class="pl">manifest.csv</span>`},
+ {k:"K2",says:"“Upload a CSV or spreadsheet, or enter your data directly. Each row becomes one output.” (Creatomate marketing page.)",inf:"A competitor states one row = one output plainly. We make it a visible rule rather than a setting.",ui:"The invariant strip at the bottom of the app, and one tile per video in the batch view.",mini:`<div style="display:grid;grid-template-columns:1fr 14px 1fr;gap:4px;align-items:center"><div class="ln"></div><span>→</span><i style="height:18px;width:11px;background:var(--fg);opacity:.5;border-radius:2px"></i><div class="ln"></div><span>→</span><i style="height:18px;width:11px;background:var(--fg);opacity:.5;border-radius:2px"></i></div>`},
+ {k:"R1",says:"Figma’s properties panel on the right changes with selection. When nothing is selected it shows file-level things such as local styles and variables. You can select a layer on the canvas or in the Layers panel on the left.",inf:"Left = structure, right = properties of the current selection, canvas and list selection kept in sync.",ui:"Template screen: the Inspector shows the selected scene and layer. Clicking the canvas, the Layers list or a timeline clip selects the same thing.",mini:`<div style="display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:4px;height:80px"><div style="display:grid;gap:3px;align-content:start"><div class="ln"></div><div class="ln" style="background:var(--focus)"></div><div class="ln"></div></div><div style="background:var(--sec);border-radius:3px"></div><div style="display:grid;gap:3px;align-content:start"><div class="ln" style="width:60%"></div><div class="ln"></div><div class="ln"></div></div></div>`},
+ {k:"R2",says:"String variables can be applied to a text layer’s content from the Text section of the right sidebar via “Apply variable”, then chosen from a picker.",inf:"Binding is a property of the selected layer, not a separate wizard. Note that Figma variables are not spreadsheet columns. This is an analogy, not parity.",ui:"Every variable layer’s inspector has “Connect data →”, and connected values show as a monospace data pill.",mini:`<div class="ln" style="width:40%"></div><div style="display:flex;gap:4px;align-items:center"><span style="font-size:10px">Content</span><span class="pl">question</span></div><div class="ln" style="width:70%"></div>`},
+ {k:"R3",says:"Airtable’s grid view lets you hide fields (except the primary field, which can’t be hidden), change row height (four options) and expand a record. Field width is adjustable.",inf:"For row review, an always-visible row identity plus adjustable density beats a card list.",ui:"Data screen: pinned <code>id</code> column, type under each header, Compact/Tall toggle, and an “attention” filter.",mini:`<div style="display:grid;grid-template-columns:24px 1fr 1fr;gap:2px">${"<i style='height:9px;background:var(--bd)'></i>".repeat(3).replace("var(--bd)","var(--fg);opacity:.35")}${"<i style='height:9px;background:var(--surface);border:1px solid var(--bd)'></i>".repeat(9)}</div>`},
+ {k:"R4",says:"GitHub Actions offers “Re-run all jobs” and “Re-run failed jobs”. Re-runs use the same commit SHA and ref as the original event. A run can be re-run at most 50 times.",inf:"Retrying only the failed units against a frozen input is a well-known, trusted recovery pattern.",ui:"Export screen: “Retry N failed only”. The batch is pinned to its revision, and changes made mid-batch show a frozen-revision notice. A cap on retries is noted for the product, not modelled here.",mini:`<div style="display:flex;gap:3px">${"<i style='width:12px;height:12px;background:var(--ok);opacity:.7;border-radius:2px'></i>".repeat(5)}<i style="width:12px;height:12px;background:var(--err);border-radius:2px"></i></div><span class="pl" style="font-family:var(--sans)">Retry 1 failed</span>`}
+];
+$("#refs").innerHTML=REFS.map(r=>`<article class="ref"><div class="mini" aria-hidden="true">${r.mini}</div><div style="display:grid;gap:6px"><h4><a href="${REF[r.k][1]}" target="_blank" rel="noopener">${r.k} · ${REF[r.k][0]}</a></h4><dl><dt><span class="tag doc">${r.tag||"DOC"}</span></dt><dd>${r.says}</dd><dt><span class="tag inf">INFERRED</span></dt><dd>${r.inf}</dd><dt><span class="tag pro">OUR UI</span></dt><dd>${r.ui}</dd></dl></div></article>`).join("");
+
+render();
+})();
+</script>
+</body>
+</html>
